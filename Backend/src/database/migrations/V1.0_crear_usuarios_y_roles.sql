@@ -1,0 +1,11 @@
+USE dogalert;
+
+CREATE TABLE IF NOT EXISTS Usuarios (
+    ID_Usuario INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre VARCHAR(150) NOT NULL,
+    Telefono VARCHAR(20),
+    Correo VARCHAR(50) NOT NULL UNIQUE,
+    Contrasena VARCHAR(255) NOT NULL,
+    Rol ENUM('ADMIN', 'USER') NOT NULL DEFAULT 'USER',
+    Mayor_Edad TINYINT(1) DEFAULT 1
+);
