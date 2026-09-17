@@ -1,0 +1,189 @@
+* {
+  box-sizing: border-box;
+}
+
+.container {
+  position: absolute;
+
+  top: 0;
+  left: -2px;
+
+  width: 100vw;
+  min-height: 100vh;
+
+  background: #fff;
+
+  border-radius: 20px;
+
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+
+  overflow: hidden;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  width: 100%;
+  height: 506px;
+
+  background: #fff;
+
+  overflow: hidden;
+}
+
+
+
+.header {
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+
+  padding: 10px 12px 8px;
+
+  gap: 6px;
+
+  background: #fff;
+
+  border-bottom: 1.34px solid #e0e0e0;
+}
+
+.back-icon {
+  width: 18px;
+  height: 18px;
+
+  flex-shrink: 0;
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  width: 100%;
+}
+
+.header-title p {
+  margin: 0;
+
+  color: #2a2a2a;
+
+  font-family: "Outfit", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+
+  line-height: 21px;
+}
+
+
+
+.protocols {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  width: 100%;
+
+  padding: 8px 12px;
+
+  gap: 7px;
+}
+
+.description {
+  width: 197px;
+
+  margin: 0;
+  padding-bottom: 2px;
+
+  color: #5e5e5e;
+
+  font-family: "DM Sans", sans-serif;
+  font-size: 10px;
+
+  line-height: 14px;
+}
+
+
+
+.protocol {
+  display: flex;
+  align-items: flex-start;
+
+  width: fit-content;
+
+  padding: 7px 9px;
+
+  gap: 9px;
+
+  border-radius: 9px;
+
+  background: #f4f4f4;
+}
+
+
+
+.icon-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  width: 28px;
+  height: 28px;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #fff0eb;
+
+  color: #2a2a2a;
+
+  font-size: 14px;
+
+  cursor: pointer;
+}
+
+
+
+.protocol-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  width: 141px;
+}
+
+.protocol-title {
+  width: 100%;
+
+  margin: 0;
+
+  color: #2a2a2a;
+
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+
+  line-height: 16.5px;
+}
+
+.protocol-description {
+  width: 142px;
+
+  margin: 0;
+  padding-top: 2px;
+
+  color: #5e5e5e;
+
+  font-family: "DM Sans", sans-serif;
+  font-size: 9px;
+
+  line-height: 12.6px;
+}

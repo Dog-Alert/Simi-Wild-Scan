@@ -6,13 +6,33 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest --watchAll=false"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@react-navigation/native": "^7.4.1",
+    "@react-navigation/native-stack": "^7.19.1",
     "expo": "~54.0.36",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "^5.10.0",
+    "react-native-screens": "^4.28.0",
+    "react-native-web": "~0.21.0"
   },
-  "private": true
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^expo-modules-core/src/Refs$": "<rootDir>/node_modules/expo-modules-core/src/Refs.ts"
+    }
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^13.0.1",
+    "jest": "^29.7.0",
+    "jest-expo": "^54.0.0",
+    "react-test-renderer": "^19.1.0"
+  }
 }
