@@ -1,10 +1,11 @@
 package com.equipo3.dogalert.config;
 
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import java.util.Base64;
-
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +35,7 @@ public class JwtConfig {
 
         if (secretBytes.length < 32) {
             throw new IllegalStateException(
-                    "JWT_SECRET debe contener al menos 32 bytes"
+                    "JWT_SECRET debe contener al menos 32 bytes (256 bits)"
             );
         }
 
@@ -43,10 +44,8 @@ public class JwtConfig {
 
     @Bean
     public JwtEncoder jwtEncoder(SecretKey secretKey) {
-        return NimbusJwtEncoder
-                .withSecretKey(secretKey)
-                .algorithm(MacAlgorithm.HS256)
-                .build();
+        JWKSource<SecurityContext> jwks = new ImmutableSecret<>(secretKey.getEncoded());
+        return new NimbusJwtEncoder(jwks);
     }
 
     @Bean
