@@ -131,6 +131,22 @@ export const REPORT_MESSAGES = {
   locationRequired: 'Indica la ubicación del evento.',
   locationAccuracyInvalid: 'La precisión de la ubicación no es válida.',
   locationOutsideCreel: OUTSIDE_CREEL_MESSAGE,
+  locationPermissionDenied:
+    'DogAlert necesita tu ubicación para registrar dónde ocurrió. Actívala en los ajustes del sistema.',
+  locationPermissionBlocked:
+    'Tu ubicación está desactivada para DogAlert. Actívala en los ajustes del sistema para continuar.',
+  locationServicesOff:
+    'Tu dispositivo tiene la ubicación desactivada. Actívala en los ajustes del sistema para continuar.',
+  locationUnavailable: 'No se pudo obtener tu ubicación. Inténtalo de nuevo o corrígela manualmente.',
+  locationTooImprecise:
+    'La ubicación obtenida es demasiado imprecisa para registrar el reporte. Acércate a la calle e inténtalo de nuevo, o corrígela manualmente.',
   photoTooLarge: 'La foto supera 1 MB, elige una más pequeña.',
   photoTypeInvalid: 'La foto debe estar en formato JPEG, PNG o HEIC.',
+  photoPermissionDenied:
+    'DogAlert necesita acceso a la cámara para adjuntar la foto. Actívalo en los ajustes del sistema.',
+  photoLibraryPermissionDenied:
+    'DogAlert necesita acceso a tus fotos para adjuntar la imagen. Actívalo en los ajustes del sistema.',
+  photoUnavailable: 'No se pudo preparar la foto. Inténtalo de nuevo.',
+  photoTooLargeAfterCompress:
+    'La foto sigue pesando más de 1 MB después de reducirla. Elige una imagen más pequeña.',
 };
