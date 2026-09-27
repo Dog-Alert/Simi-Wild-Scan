@@ -1,334 +1,85 @@
 package com.equipo3.dogalert.report;
 
-import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
-import com.equipo3.dogalert.evidence.ReportEvidence;
-import com.equipo3.dogalert.user.User;
-
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "Reportes")
 public class Report {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ID_Reporte")
     private Long id;
-
-    @NotBlank
-    @Pattern(
-            regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
-            message = "debe ser un UUID valido")
-    @Column(name = "ID_Reporte_Cliente", nullable = false, unique = true, length = 36)
-    private String clientReportId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ID_Usuario")
-    private User user;
-
-    @NotNull
-    @Column(name = "Fecha_Evento", nullable = false)
-    private Instant eventAt;
-
-    @NotBlank
-    @Size(max = 50)
-    @Column(name = "Tipo_Evento", nullable = false, length = 50)
-    private String eventType;
-
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "severity", nullable = false, length = 20)
-    private Severity severity;
-
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "certainty", nullable = false, length = 20)
-    private Certainty certainty;
-
-    @Min(1)
-    @Max(999)
-    @Column(name = "Cantidad_Perros", nullable = false)
-    private int dogCount;
-
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "size", nullable = false, length = 20)
-    private DogSize size;
-
-    @Size(max = 120)
-    @Column(name = "color", length = 120)
-    private String color;
-
-    @Column(name = "Color_Indeterminado", nullable = false)
-    private boolean colorUndetermined;
-
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "collar", nullable = false, length = 20)
-    private CollarPresence collar;
-
-    @NotBlank
-    @Size(min = 20, max = 2000)
-    @Column(name = "Descripcion", nullable = false, length = 2000)
-    private String description;
-
-    @NotNull
-    @DecimalMin("-90.0")
-    @DecimalMax("90.0")
-    @Column(name = "latitude", nullable = false, precision = 10, scale = 7)
-    private BigDecimal latitude;
-
-    @NotNull
-    @DecimalMin("-180.0")
-    @DecimalMax("180.0")
-    @Column(name = "longitude", nullable = false, precision = 10, scale = 7)
-    private BigDecimal longitude;
-
-    @NotBlank
-    @Size(max = 50)
-    @Column(name = "Poligono_Version", nullable = false, length = 50)
-    private String polygonVersion;
-
-    @Column(name = "Tiene_Foto", nullable = false)
-    private boolean hasPhoto;
-
-    @Column(name = "Consentimiento_Aceptado", nullable = false)
-    private boolean consentAccepted;
-
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    private ReportStatus status = ReportStatus.PENDING;
-
-    @Column(name = "Fecha_Creacion", nullable = false, updatable = false)
-    private Instant createdAt;
-
-    @Valid
-    @OneToOne(
-            mappedBy = "report",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true,
-            fetch = FetchType.LAZY)
-    private ReportEvidence evidence;
+    @Column(name = "ID_Reporte_Cliente", nullable = false, unique = true)
+    private UUID clientReportId;
+    @Column(name = "ID_Usuario") private Long userId;
+    @Column(name = "Fecha_Evento", nullable = false) private Instant eventAt;
+    @Column(name = "Tipo_Evento", nullable = false, length = 50) private String eventType;
+    @Column(nullable = false, length = 20) private String severity;
+    @Column(nullable = false, length = 20) private String certainty;
+    @Column(name = "Cantidad_Perros", nullable = false) private int dogCount;
+    @Column(nullable = false, length = 20) private String size;
+    @Column(length = 120) private String color;
+    @Column(name = "Color_Indeterminado", nullable = false) private boolean colorUndetermined;
+    @Column(nullable = false, length = 20) private String collar;
+    @Column(nullable = false, length = 2000) private String description;
+    @Column(nullable = false, precision = 10, scale = 7) private double latitude;
+    @Column(nullable = false, precision = 10, scale = 7) private double longitude;
+    @Column(name = "Poligono_Version", nullable = false, length = 50) private String boundaryVersion;
+    @Column(name = "Tiene_Foto", nullable = false) private boolean hasPhoto;
+    @Column(name = "Consentimiento_Aceptado", nullable = false) private boolean consentAccepted;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private ReportStatus status;
+    @Column(name = "Fecha_Creacion", nullable = false) private Instant createdAt;
 
     @PrePersist
-    public void beforeInsert() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
+    void beforeInsert() { if (createdAt == null) createdAt = Instant.now(); }
 
-        if (status == null) {
-            status = ReportStatus.PENDING;
-        }
-
-        hasPhoto = evidence != null;
-    }
-
-    @AssertTrue(message = "el color debe indicarse o marcarse como indeterminado")
-    public boolean isColorSelectionValid() {
-        boolean hasDefinedColor = color != null && !color.isBlank();
-        return colorUndetermined ? !hasDefinedColor : hasDefinedColor;
-    }
-
-    public void attachEvidence(ReportEvidence newEvidence) {
-        if (evidence != null && evidence != newEvidence) {
-            evidence.setReport(null);
-        }
-
-        evidence = newEvidence;
-        hasPhoto = newEvidence != null;
-
-        if (newEvidence != null && newEvidence.getReport() != this) {
-            newEvidence.setReport(this);
-        }
-    }
-
-    public void removeEvidence() {
-        attachEvidence(null);
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getClientReportId() {
-        return clientReportId;
-    }
-
-    public void setClientReportId(String clientReportId) {
-        this.clientReportId = clientReportId;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public Instant getEventAt() {
-        return eventAt;
-    }
-
-    public void setEventAt(Instant eventAt) {
-        this.eventAt = eventAt;
-    }
-
-    public String getEventType() {
-        return eventType;
-    }
-
-    public void setEventType(String eventType) {
-        this.eventType = eventType;
-    }
-
-    public Severity getSeverity() {
-        return severity;
-    }
-
-    public void setSeverity(Severity severity) {
-        this.severity = severity;
-    }
-
-    public Certainty getCertainty() {
-        return certainty;
-    }
-
-    public void setCertainty(Certainty certainty) {
-        this.certainty = certainty;
-    }
-
-    public int getDogCount() {
-        return dogCount;
-    }
-
-    public void setDogCount(int dogCount) {
-        this.dogCount = dogCount;
-    }
-
-    public DogSize getSize() {
-        return size;
-    }
-
-    public void setSize(DogSize size) {
-        this.size = size;
-    }
-
-    public String getColor() {
-        return color;
-    }
-
-    public void setColor(String color) {
-        this.color = color;
-    }
-
-    public boolean isColorUndetermined() {
-        return colorUndetermined;
-    }
-
-    public void setColorUndetermined(boolean colorUndetermined) {
-        this.colorUndetermined = colorUndetermined;
-    }
-
-    public CollarPresence getCollar() {
-        return collar;
-    }
-
-    public void setCollar(CollarPresence collar) {
-        this.collar = collar;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public BigDecimal getLatitude() {
-        return latitude;
-    }
-
-    public void setLatitude(BigDecimal latitude) {
-        this.latitude = latitude;
-    }
-
-    public BigDecimal getLongitude() {
-        return longitude;
-    }
-
-    public void setLongitude(BigDecimal longitude) {
-        this.longitude = longitude;
-    }
-
-    public String getPolygonVersion() {
-        return polygonVersion;
-    }
-
-    public void setPolygonVersion(String polygonVersion) {
-        this.polygonVersion = polygonVersion;
-    }
-
-    public boolean hasPhoto() {
-        return hasPhoto;
-    }
-
-    public boolean isConsentAccepted() {
-        return consentAccepted;
-    }
-
-    public void setConsentAccepted(boolean consentAccepted) {
-        this.consentAccepted = consentAccepted;
-    }
-
-    public ReportStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ReportStatus status) {
-        this.status = status;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public ReportEvidence getEvidence() {
-        return evidence;
-    }
+    public Long getId() { return id; }
+    public void setId(Long value) { id = value; }
+    public UUID getClientReportId() { return clientReportId; }
+    public void setClientReportId(UUID value) { clientReportId = value; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long value) { userId = value; }
+    public Instant getEventAt() { return eventAt; }
+    public void setEventAt(Instant value) { eventAt = value; }
+    public String getEventType() { return eventType; }
+    public void setEventType(String value) { eventType = value; }
+    public String getSeverity() { return severity; }
+    public void setSeverity(String value) { severity = value; }
+    public String getCertainty() { return certainty; }
+    public void setCertainty(String value) { certainty = value; }
+    public int getDogCount() { return dogCount; }
+    public void setDogCount(int value) { dogCount = value; }
+    public String getSize() { return size; }
+    public void setSize(String value) { size = value; }
+    public String getColor() { return color; }
+    public void setColor(String value) { color = value; }
+    public boolean isColorUndetermined() { return colorUndetermined; }
+    public void setColorUndetermined(boolean value) { colorUndetermined = value; }
+    public String getCollar() { return collar; }
+    public void setCollar(String value) { collar = value; }
+    public String getDescription() { return description; }
+    public void setDescription(String value) { description = value; }
+    public double getLatitude() { return latitude; }
+    public void setLatitude(double value) { latitude = value; }
+    public double getLongitude() { return longitude; }
+    public void setLongitude(double value) { longitude = value; }
+    public String getBoundaryVersion() { return boundaryVersion; }
+    public void setBoundaryVersion(String value) { boundaryVersion = value; }
+    public boolean isHasPhoto() { return hasPhoto; }
+    public void setHasPhoto(boolean value) { hasPhoto = value; }
+    public boolean isConsentAccepted() { return consentAccepted; }
+    public void setConsentAccepted(boolean value) { consentAccepted = value; }
+    public ReportStatus getStatus() { return status; }
+    public void setStatus(ReportStatus value) { status = value; }
+    public Instant getCreatedAt() { return createdAt; }
 }

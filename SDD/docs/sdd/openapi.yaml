@@ -143,7 +143,7 @@ paths:
     post:
       tags: [Reports]
       operationId: createReport
-      description: Acepta un JWT propio opcional; sin JWT crea reporte anónimo.
+      description: Acepta un JWT propio opcional; sin JWT crea reporte anónimo. La ubicación se valida contra el polígono versionado de Creel y no se devuelve en el recibo.
       security:
         - {}
         - BearerJwt: []
@@ -563,7 +563,7 @@ components:
         accuracyMeters: { type: [number, "null"], minimum: 0 }
     ReportCreate:
       type: object
-      required: [clientReportId, eventAt, eventType, severity, certainty, dogCount, size, colorUndetermined, collar, description, location]
+      required: [clientReportId, eventAt, eventType, severity, certainty, dogCount, size, colorUndetermined, collar, description, location, consentAccepted]
       properties:
         clientReportId: { type: string, format: uuid }
         eventAt: { type: string, format: date-time }
@@ -578,6 +578,7 @@ components:
         collar: { $ref: "#/components/schemas/CollarPresence" }
         description: { type: string, minLength: 20, maxLength: 2000 }
         location: { $ref: "#/components/schemas/Coordinate" }
+        consentAccepted: { type: boolean, const: true }
     ReportUpdate:
       type: object
       required: [eventAt, eventType, severity, certainty, dogCount, size, colorUndetermined, collar, description, location]
