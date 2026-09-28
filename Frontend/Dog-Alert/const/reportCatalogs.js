@@ -14,18 +14,30 @@ import { CREEL_CENTER } from './creelPolygon';
 export const UNDETERMINED_LABEL = 'No se pudo determinar';
 
 export const EVENT_TYPES = [
-  { value: 'SIGHTING', label: 'Avistamiento sin incidente' },
-  { value: 'ATTACK_PERSON', label: 'Agresión o ataque a una persona' },
-  { value: 'ATTACK_PET', label: 'Ataque a una mascota' },
+  { value: 'SIGHTING', label: 'Avistamiento' },
+  { value: 'ATTACK_PERSON', label: 'Ataque a persona' },
+  { value: 'ATTACK_PET', label: 'Ataque a mascota' },
   { value: 'ATTACK_LIVESTOCK', label: 'Ataque a ganado' },
   { value: 'ATTACK_WILDLIFE', label: 'Ataque a fauna silvestre' },
+  { value: 'HEALTH_RISK', label: 'Riesgo sanitario' },
   { value: 'INJURED_OR_SICK', label: 'Perro herido o enfermo' },
-  { value: 'HEALTH_RISK', label: 'Posible riesgo sanitario' },
   { value: 'OTHER', label: 'Otro' },
 ];
 
+/**
+ * El chip "Manada" del diseño NO se incluye: el contrato de la API no define un
+ * valor para una jauria/manada como tipo de incidente. Agregarlo exigiria un
+ * cambio en el backend; queda pendiente de decision.
+ */
+
 export const OTHER_EVENT_TYPE = 'OTHER';
 
+/**
+ * Gravedad. RF-009 pide registrarla, pero se asigna en la revision del reporte
+ * y no la elige quien reporta, asi que el formulario no la pide. El payload la
+ * envia en `null` y el backend debe aceptarlo: el contrato de la API hoy la
+ * declara obligatoria.
+ */
 export const SEVERITIES = [
   {
     value: 'LOW',
@@ -44,24 +56,95 @@ export const SEVERITIES = [
   },
 ];
 
+/**
+ * Certeza. El diseño propone Seguro / Probable / No sé, una escala de confianza
+ * que no coincide con los tres niveles del contrato (baja, media, alta). Se
+ * mapea de mayor a menor: "No sé" es confianza baja.
+ */
 export const CERTAINTIES = [
-  { value: 'LOW', label: 'Baja', help: 'Solo lo supones, no lo viste con claridad.' },
-  { value: 'MEDIUM', label: 'Media', help: 'Lo viste a distancia o con poca claridad.' },
-  { value: 'HIGH', label: 'Alta', help: 'Lo viste de cerca y con claridad.' },
+  {
+    value: 'HIGH',
+    label: 'Seguro',
+    help: 'Lo viste de cerca y con claridad.',
+  },
+  {
+    value: 'MEDIUM',
+    label: 'Probable',
+    help: 'Lo viste a distancia o con poca claridad.',
+  },
+  {
+    value: 'LOW',
+    label: 'No sé',
+    help: 'Solo lo supones, no lo viste con claridad.',
+  },
 ];
 
 export const DOG_SIZES = [
-  { value: 'SMALL', label: 'Chico' },
+  { value: 'SMALL', label: 'Pequeño' },
   { value: 'MEDIUM', label: 'Mediano' },
   { value: 'LARGE', label: 'Grande' },
-  { value: 'UNDETERMINED', label: UNDETERMINED_LABEL },
+  { value: 'UNDETERMINED', label: 'No sé' },
 ];
 
 export const COLLAR_PRESENCES = [
   { value: 'YES', label: 'Sí' },
   { value: 'NO', label: 'No' },
-  { value: 'UNDETERMINED', label: UNDETERMINED_LABEL },
+  { value: 'UNDETERMINED', label: 'No sé' },
 ];
+
+/**
+ * Colores. El contrato trata `color` como texto libre de 120 caracteres, asi que
+ * el valor que se envia es la etiqueta en espanol, no un codigo. "No sé" no es
+ * un color: activa `colorUndetermined` y el payload manda `color: null`.
+ */
+export const UNDETERMINED_VALUE = 'UNDETERMINED';
+
+export const COLORS = [
+  { value: 'Café', label: 'Café' },
+  { value: 'Negro', label: 'Negro' },
+  { value: 'Blanco', label: 'Blanco' },
+  { value: 'Gris', label: 'Gris' },
+  { value: 'Manchado', label: 'Manchado' },
+  { value: UNDETERMINED_VALUE, label: 'No sé' },
+];
+
+/**
+ * Cantidad de perros. El diseño ofrece rangos (1 / 2-3 / 4+), pero el contrato
+ * exige un entero exacto de 1 a 999 porque RF-038 cuenta "cantidad observada de
+ * perros". Cada rango guarda su cota inferior, que es el dato defendible: nunca
+ * se reporta mas perros de los que se vieron, algo que importa en un mapa publico
+ * de alertas. El conteo real es una estimacion; RF-039 pide etiquetar las
+ * estimaciones como tales.
+ */
+export const DOG_COUNT_BUCKETS = [
+  { value: 1, label: '1' },
+  { value: 2, label: '2–3' },
+  { value: 4, label: '4+' },
+];
+
+/** Devuelve la cantidad exacta que representa el rango elegido, o null si no hay. */
+export function resolveDogCountBucket(count) {
+  const parsed = Number(count);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  if (parsed <= 1) {
+    return 1;
+  }
+
+  if (parsed <= 3) {
+    return 2;
+  }
+
+  return 4;
+}
+
+/** Inversa de `resolveDogCountBucket`: dado un conteo, que rango esta activo. */
+export function dogCountBucketFor(count) {
+  return resolveDogCountBucket(count);
+}
 
 /**
  * Fuentes de ubicacion que acepta el contrato. `openapi.yaml:562` solo declara
@@ -122,7 +205,7 @@ export const REPORT_MESSAGES = {
   dogCountRequired: 'Indica cuántos perros viste.',
   dogCountInvalid: `La cantidad de perros debe ser un número entre ${REPORT_LIMITS.dogCount.min} y ${REPORT_LIMITS.dogCount.max}.`,
   sizeRequired: 'Selecciona el tamaño del perro.',
-  colorRequired: 'Indica el color o marca "No se pudo determinar".',
+  colorRequired: 'Indica el color o marca "No sé".',
   colorTooLong: `El color admite máximo ${REPORT_LIMITS.color.maxLength} caracteres.`,
   collarRequired: 'Indica si el perro lleva collar.',
   descriptionRequired: 'Describe lo que ocurrió.',
