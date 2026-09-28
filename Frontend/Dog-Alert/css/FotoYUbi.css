@@ -1,0 +1,426 @@
+/* FotoYUbi
+ *
+ * Export de Figma de la pantalla "Foto y ubicacion" (paso 1 de 2 del reporte).
+ * Archivo de referencia del diseno: la implementacion en React Native vive en
+ * `screens/FotoYUbiScreen.js` con `StyleSheet`, igual que el resto de pantallas.
+ *
+ * Marco del diseño: 220 x 440 px. En el movil real el ancho es flexible y solo
+ * la altura del mapa se mantiene fija, porque sus medidas internas son relativas.
+ */
+
+/* Container */
+.photo-location-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0px;
+
+  width: 100%;
+  flex: 1;
+
+  background: #f4f4f4;
+
+  border-radius: 20px;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 12px 8px;
+  gap: 6px;
+
+  width: 100%;
+  height: 40.34px;
+
+  background: #ffffff;
+  border-bottom: 1.34px solid #e0e0e0;
+}
+
+.header-icon {
+  width: 18px;
+  height: 18px;
+
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-family: 'Outfit';
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 21px;
+
+  color: #2a2a2a;
+}
+
+/* Contenido */
+.body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 12px;
+  gap: 10px;
+
+  width: 100%;
+  flex: 1;
+}
+
+/* Indicador de pasos */
+.steps {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0px 0px 4px;
+  gap: 4px;
+}
+
+.step {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-badge {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  width: 18px;
+  height: 18px;
+
+  border-radius: 9px;
+}
+
+.step-badge--active {
+  background: #ff6b35;
+}
+
+.step-badge--idle {
+  background: #e0e0e0;
+}
+
+.step-badge--done {
+  background: #2e9e5b;
+}
+
+.step-number {
+  font-family: 'Outfit';
+  font-weight: 700;
+  font-size: 9px;
+  line-height: 14px;
+
+  color: #ffffff;
+}
+
+.step-number--idle {
+  color: #9e9e9e;
+}
+
+.step-label {
+  font-family: 'DM Sans';
+  font-weight: 600;
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.step-label--active {
+  color: #ff6b35;
+}
+
+.step-label--idle {
+  color: #9e9e9e;
+  font-weight: 400;
+}
+
+.step-connector {
+  height: 1px;
+  flex: 1;
+
+  background: #e0e0e0;
+}
+
+.step-connector--active {
+  background: #ff6b35;
+}
+
+/* Tarjeta de foto */
+.photo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+  gap: 6px;
+
+  width: 100%;
+
+  background: #ffffff;
+  border-radius: 10px;
+}
+
+.card-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.card-title-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.card-title {
+  font-family: 'DM Sans';
+  font-weight: 600;
+  font-size: 10px;
+  line-height: 15px;
+
+  color: #2a2a2a;
+}
+
+/* Estado vacio de la foto */
+.photo-placeholder {
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0px;
+  gap: 6px;
+
+  width: 100%;
+  height: 144px;
+
+  background: #e0e0e0;
+  border: 1.34px dashed #9e9e9e;
+  border-radius: 12px;
+}
+
+.photo-placeholder-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.photo-placeholder-text {
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 15px;
+
+  color: #9e9e9e;
+}
+
+/* Foto elegida */
+.photo-preview {
+  width: 100%;
+  height: 144px;
+
+  border-radius: 12px;
+
+  background: #e0e0e0;
+}
+
+.photo-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+}
+
+/* Botones de captura */
+.btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+
+  background: #ff6b35;
+  border: none;
+  border-radius: 10px;
+}
+
+.btn-text {
+  font-family: 'Outfit';
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 16px;
+
+  color: #ffffff;
+  text-align: center;
+}
+
+.btn--muted {
+  background: #9e9e9e;
+}
+
+/* Tarjeta de ubicacion */
+.location-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+
+  width: 100%;
+
+  background: #ffffff;
+  border-radius: 10px;
+}
+
+/* Mapa decorativo */
+.map {
+  position: relative;
+
+  width: 100%;
+  height: 80px;
+
+  margin-top: 6px;
+
+  background: #eaf0ec;
+  border-radius: 8px;
+
+  overflow: hidden;
+}
+
+.map-grid-line {
+  position: absolute;
+
+  background: #d6e0d8;
+}
+
+.map-road--horizontal {
+  left: 0px;
+  width: 100%;
+  height: 6px;
+}
+
+.map-road--vertical {
+  top: 0px;
+  height: 100%;
+  width: 6px;
+}
+
+.map-road {
+  position: absolute;
+
+  background: #c8d8ca;
+}
+
+.map-block {
+  position: absolute;
+
+  background: #d4ddd6;
+  border-radius: 3px;
+}
+
+/* Pin: circulo con punta hacia abajo */
+.map-pin {
+  position: absolute;
+
+  width: 14px;
+  height: 14px;
+
+  background: #ff6b35;
+  border: 1.34px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-radius: 7px 7px 7px 0px;
+
+  transform: rotate(-45deg);
+}
+
+/* Aviso de ubicacion derivada de la foto */
+.derived-note {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 6px;
+
+  width: 100%;
+
+  background: #f4f4f4;
+  border-radius: 8px;
+}
+
+.derived-note-text {
+  flex: 1;
+
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 14px;
+
+  color: #5e5e5e;
+}
+
+/* Boton de compartir ubicacion */
+.share-location {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+
+  width: 100%;
+
+  background: #ff6b35;
+  border: none;
+  border-radius: 10px;
+}
+
+/* Boton siguiente */
+.next-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+
+  width: 100%;
+  height: 28px;
+
+  background: #ff6b35;
+  border: none;
+  border-radius: 10px;
+}
+
+.next-button--disabled {
+  background: #9e9e9e;
+}
+
+/* Mensajes de error y de estado */
+.notice {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 6px;
+
+  width: 100%;
+
+  border-radius: 8px;
+}
+
+.notice--error {
+  background: #fdecea;
+}
+
+.notice-text {
+  flex: 1;
+
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 14px;
+
+  color: #b3261e;
+}
