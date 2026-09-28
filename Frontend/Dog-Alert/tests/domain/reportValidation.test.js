@@ -62,10 +62,16 @@ describe('borrador vacío', () => {
         'eventAt',
         'eventType',
         'location',
-        'severity',
         'size',
       ].sort()
     );
+  });
+
+  it('no exige la gravedad porque la asigna quien revisa el reporte', () => {
+    const errors = validateReport(createEmptyReportDraft());
+
+    expect(errors.severity).toBeUndefined();
+    expect(validateReport({ ...validDraft(), severity: '' }).severity).toBeUndefined();
   });
 });
 
@@ -137,7 +143,7 @@ describe('validateDogCount', () => {
 
 describe('validateColor', () => {
   it('exige color o la opcion de no determinarlo', () => {
-    expect(validateColor('', false)).toBe('Indica el color o marca "No se pudo determinar".');
+    expect(validateColor('', false)).toBe('Indica el color o marca "No sé".');
   });
 
   it('acepta la opcion No se pudo determinar', () => {

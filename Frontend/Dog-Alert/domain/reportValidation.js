@@ -225,9 +225,8 @@ export function validateReport(draft = {}) {
     errors.eventType = eventTypeError;
   }
 
-  if (!draft.severity) {
-    errors.severity = REPORT_MESSAGES.severityRequired;
-  }
+  // `severity` no se valida a proposito: la gravedad la asigna quien revisa el
+  // reporte, no quien lo captura. Ver `SEVERITIES` en `reportCatalogs`.
 
   if (!draft.certainty) {
     errors.certainty = REPORT_MESSAGES.certaintyRequired;
@@ -278,6 +277,10 @@ export function isReportValid(draft) {
  * (`SDD/docs/sdd/openapi.yaml:564-580`).
  *
  * La foto viaja como parte aparte del multipart, nunca dentro del payload.
+ *
+ * `severity` sale en `null` porque la gravedad la asigna quien revisa el reporte
+ * y el formulario no la pide. El contrato de la API la declara obligatoria, asi
+ * que el backend tiene que aceptar null para que este reporte se pueda enviar.
  */
 export function buildReportPayload(draft, clientReportId) {
   const colorUndetermined = Boolean(draft.colorUndetermined);
@@ -291,7 +294,7 @@ export function buildReportPayload(draft, clientReportId) {
     eventType: draft.eventType,
     eventTypeOther:
       draft.eventType === OTHER_EVENT_TYPE ? normalizeText(draft.eventTypeOther) || null : null,
-    severity: draft.severity,
+    severity: draft.severity || null,
     certainty: draft.certainty,
     dogCount: toFiniteNumber(draft.dogCount),
     size: draft.size,
