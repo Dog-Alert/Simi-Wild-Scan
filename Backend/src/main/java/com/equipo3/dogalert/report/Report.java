@@ -32,8 +32,8 @@ public class Report {
     @Column(name = "Color_Indeterminado", nullable = false) private boolean colorUndetermined;
     @Column(nullable = false, length = 20) private String collar;
     @Column(nullable = false, length = 2000) private String description;
-    @Column(nullable = false, precision = 10, scale = 7) private double latitude;
-    @Column(nullable = false, precision = 10, scale = 7) private double longitude;
+    @Column(nullable = false) private double latitude;
+    @Column(nullable = false) private double longitude;
     @Column(name = "Poligono_Version", nullable = false, length = 50) private String boundaryVersion;
     @Column(name = "Tiene_Foto", nullable = false) private boolean hasPhoto;
     @Column(name = "Consentimiento_Aceptado", nullable = false) private boolean consentAccepted;
