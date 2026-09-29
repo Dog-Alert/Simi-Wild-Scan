@@ -6,7 +6,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-export default function InicioScreen({ onStart, onAnonymous, onPublicInfo }) {
+export default function InicioScreen({ onStart, onAnonymous, onPublicInfo, onReport }) {
   return (
     <View style={styles.inicioContainer}>
       <View style={styles.inicioBackground}>
@@ -34,6 +34,12 @@ export default function InicioScreen({ onStart, onAnonymous, onPublicInfo }) {
             <TouchableOpacity style={styles.secondaryButton} onPress={onPublicInfo}>
               <Text style={styles.secondaryButtonText}>Ver información pública</Text>
             </TouchableOpacity>
+
+            {onReport ? (
+              <TouchableOpacity style={styles.anonymousButton} onPress={onReport}>
+                <Text style={styles.anonymousButtonText}>Reportar un incidente</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity style={styles.anonymousButton} onPress={onAnonymous}>
               <Text style={styles.anonymousButtonText}>
@@ -80,7 +86,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   inicioInfo: {
-    width: 192,
+    width: '100%',
+    maxWidth: 440,
     minHeight: 100,
     paddingBottom: 20,
   },
@@ -91,36 +98,36 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   brandIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#ff6b35',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 26,
     color: '#fff',
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
     overflow: 'hidden',
   },
   brandName: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '800',
   },
   brandDescription: {
-    width: 193,
+    width: '100%',
     color: 'rgba(255, 255, 255, 0.75)',
-    fontSize: 11,
-    lineHeight: 16.5,
-    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
   },
   inicioActions: {
     width: '100%',
-    gap: 8,
+    gap: 10,
   },
   startButton: {
     width: '100%',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 10,
     backgroundColor: '#ff6b35',
@@ -129,12 +136,12 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
   },
   secondaryButton: {
     width: '100%',
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.10)',
@@ -144,20 +151,20 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
   },
   anonymousButton: {
     width: '100%',
-    paddingVertical: 6,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
   anonymousButtonText: {
     color: 'rgba(255, 255, 255, 0.60)',
-    fontSize: 11,
-    lineHeight: 16.5,
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
   },
 });

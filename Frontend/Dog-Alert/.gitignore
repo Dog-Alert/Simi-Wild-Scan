@@ -31,7 +31,11 @@ yarn-error.*
 *.pem
 
 # local env files
+# .env queda fuera del repositorio: contiene la URL del API de cada maquina.
+# La plantilla compartida es .env.example, que si se versiona.
+.env
 .env*.local
+!.env.example
 
 # typescript
 *.tsbuildinfo

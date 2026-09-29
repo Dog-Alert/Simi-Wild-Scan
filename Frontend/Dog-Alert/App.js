@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -15,12 +15,24 @@ import IniciarSesionScreen from './screens/InicioSesionScreen';
 import CrearCuentaScreen from './screens/CrearCuentaScreen';
 import ProtocoloDeSeguridad from './screens/ProtocoloDeSeguridad';
 import PublicInfoScreen from './screens/PublicInfoScreen';
+import FotoYUbiScreen from './screens/FotoYUbiScreen';
+import ReporteScreen from './screens/ReporteScreen';
 import { useAuth } from './hooks/UseAuth';
+import { useReportDraft } from './hooks/UseReportDraft';
+import { createClientReportId, submitReport } from './apis/reportsApi';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const { user, login, register, logout, loading, error, response, clearError } = useAuth();
+  const { draft, updateDraft, resetDraft } = useReportDraft();
+
+  // El id se genera al entrar al formulario y se conserva entre reintentos, para
+  // que un envio repetido no cree dos reportes. Se descarta al terminar.
+  const [clientReportId, setClientReportId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
 
   const handleLogin = async (payload, navigation) => {
     const result = await login(payload);
@@ -40,6 +52,46 @@ export default function App() {
     const ok = await logout();
     if (ok) {
       navigation.navigate('Inicio');
+    }
+  };
+
+  // Entrada al reporte desde el inicio. Siempre es un reporte nuevo: si la
+  // persona abandono uno a medias y vuelve a empezar, no debe heredar el
+  // borrador anterior ni el id de idempotencia del intento previo.
+  const enterReportFlow = (navigation) => {
+    resetDraft();
+    setClientReportId(createClientReportId());
+    setSubmitError(null);
+    setConfirmation(null);
+
+    navigation.navigate('ReporteFotoUbicacion');
+  };
+
+  const handleSubmitReport = async (patch, navigation) => {
+    const currentDraft = { ...draft, ...patch };
+    // El id se conserva entre reintentos para que reenviar no cree dos reportes.
+    // Se genera aqui tambien para que ningun camino de entrada pueda enviarlo nulo.
+    const reportId = clientReportId || createClientReportId();
+
+    setClientReportId(reportId);
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Sin token: la API acepta el reporte anonimo y `useAuth` todavia no
+      // expone el JWT.
+      const receipt = await submitReport({
+        draft: currentDraft,
+        clientReportId: reportId
+      });
+
+      setConfirmation(receipt);
+      resetDraft();
+      navigation.navigate('Inicio');
+    } catch (error) {
+      setSubmitError({ message: error.message, fields: error.fieldErrors });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -87,8 +139,33 @@ export default function App() {
                   onStart={() => props.navigation.navigate('Login')}
                   onAnonymous={() => props.navigation.navigate('Protocolo')}
                   onPublicInfo={() => props.navigation.navigate('InfoPublica')}
+                  onReport={() => enterReportFlow(props.navigation)}
                 />
               </>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ReporteFotoUbicacion">
+            {(props) => (
+              <FotoYUbiScreen
+                draft={draft}
+                onChange={updateDraft}
+                onNext={() => props.navigation.navigate('ReporteDetalles')}
+                onBack={() => props.navigation.navigate('Inicio')}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ReporteDetalles">
+            {(props) => (
+              <ReporteScreen
+                draft={draft}
+                onChange={updateDraft}
+                onSubmit={(patch) => handleSubmitReport(patch, props.navigation)}
+                onBack={() => props.navigation.navigate('ReporteFotoUbicacion')}
+                submitError={submitError}
+                submitting={submitting}
+              />
             )}
           </Stack.Screen>
 
@@ -200,18 +277,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   userBarText: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#2a2a2a',
   },
   logoutButton: {
     backgroundColor: '#ff6b35',
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   logoutButtonText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
 });

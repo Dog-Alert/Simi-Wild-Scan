@@ -24,6 +24,22 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "DogAlert usa tu ubicación solo mientras capturas un reporte, para registrar dónde ocurrió el evento. No la rastrea en segundo plano."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DogAlert accede a tus fotos solo para adjuntar la imagen de un reporte que tú eliges.",
+          "cameraPermission": "DogAlert usa la cámara solo cuando tomas la foto de un reporte. No te acerques al animal para fotografiarlo.",
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }

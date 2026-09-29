@@ -50,4 +50,22 @@ describe('CrearCuentaScreen', () => {
 
     expect(onBack).toHaveBeenCalledTimes(1);
   });
+
+  // Regresion: campos, checkboxes y boton traian `width: 196` fijo, copiado de
+  // un frame de Figma, y el formulario quedaba pegado al borde izquierdo.
+  it('usa anchos fluidos y no fijos en pixeles', () => {
+    const { getByTestId } = render(<CrearCuentaScreen onBack={jest.fn()} onCreate={jest.fn()} />);
+
+    const form = getByTestId('register-form');
+
+    expect(form).toHaveStyle({ width: '100%' });
+    expect(form.props.style.width).not.toBe(196);
+  });
+
+  it('usa el padding del boton Crear cuenta segun el diseno', () => {
+    const { getByTestId } = render(<CrearCuentaScreen onBack={jest.fn()} onCreate={jest.fn()} />);
+
+    // 12 px verticales accompany the 15 px button label.
+    expect(getByTestId('submit-create-account')).toHaveStyle({ paddingVertical: 12 });
+  });
 });
