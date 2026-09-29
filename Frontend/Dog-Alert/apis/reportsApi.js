@@ -6,10 +6,8 @@
  *
  * RUTA
  * ----
- * El contrato canonico declara `POST /v1/reports`, pero la app ya consume el
- * resto en `/api/*` (ver `getPublicReports`) y no existe gateway que anteponga
- * `/v1`. Se usa `POST /api/reports` y la ruta queda aislada en
- * `REPORTS_PATH` para corregirla en un solo lugar cuando el backend decida.
+ * El contrato canonico declara `POST /v1/reports` y el backend (DOG-29)
+ * lo expone en esa ruta. La ruta queda aislada en `REPORTS_PATH`.
  *
  * PRIVACIDAD
  * ----------
@@ -27,7 +25,7 @@ import { OUTSIDE_CREEL_MESSAGE } from '../const/reportCatalogs';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
 
-const REPORTS_PATH = '/api/reports';
+const REPORTS_PATH = '/v1/reports';
 
 /** Codigo que el backend devuelve al rechazar una coordenada fuera de Creel. */
 const OUTSIDE_CREEL_CODE = 'REPORT_LOCATION_OUTSIDE_CREEL';
