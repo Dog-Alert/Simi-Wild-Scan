@@ -32,7 +32,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @Entity
-@Table(name = "Reportes")
+@Table(name = "reportes")
 public class Report {
 
     @Id

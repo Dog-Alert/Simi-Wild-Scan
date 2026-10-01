@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @Entity
-@Table(name = "Poligonos_Creel")
+@Table(name = "poligonos_creel")
 public class CreelPolygon {
 
     @Id
