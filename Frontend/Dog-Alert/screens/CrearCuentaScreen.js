@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
+  View,
 } from 'react-native';
 
 export default function CrearCuentaScreen({ onBack, onCreate }) {
@@ -22,23 +25,38 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
   };
 
   return (
-    <View style={styles.crearCuenta}>
-      <View style={styles.crearCuentaContainer}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <View style={styles.crearCuentaHeader}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={onBack}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+            hitSlop={10}
+          >
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
 
           <Text style={styles.titulo}>Crear cuenta</Text>
         </View>
 
-        <View style={styles.crearCuentaForm}>
+        <View style={styles.crearCuentaForm} testID="register-form">
           <View style={styles.formField}>
             <Text style={styles.fieldLabel}>Nombre completo</Text>
             <TextInput
               style={styles.inputContainer}
               placeholder="Nombre completo"
               placeholderTextColor="#9e9e9e"
+              autoComplete="name"
               value={fullName}
               onChangeText={setFullName}
             />
@@ -52,6 +70,7 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
               placeholderTextColor="#9e9e9e"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoComplete="email"
               value={email}
               onChangeText={setEmail}
             />
@@ -64,6 +83,7 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
               placeholder="Contraseña"
               placeholderTextColor="#9e9e9e"
               secureTextEntry
+              autoComplete="password-new"
               value={password}
               onChangeText={setPassword}
             />
@@ -76,16 +96,23 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
               placeholder="Confirmar contraseña"
               placeholderTextColor="#9e9e9e"
               secureTextEntry
+              autoComplete="password-new"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
             />
           </View>
 
           <View style={styles.checkboxSection}>
+            {/* `hitSlop` amplia el area tactil del checkbox de 14 px del
+                diseno sin alterar su tamano visible. */}
             <View style={styles.checkboxOption}>
               <TouchableOpacity
                 style={styles.checkbox}
                 onPress={() => setAdult((current) => !current)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: adult }}
+                accessibilityLabel="Confirmo que soy mayor de edad"
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 {adult ? <View style={styles.checkboxInner} /> : null}
               </TouchableOpacity>
@@ -96,6 +123,10 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
               <TouchableOpacity
                 style={styles.checkbox}
                 onPress={() => setTerms((current) => !current)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: terms }}
+                accessibilityLabel="Acepto el aviso de privacidad y terminos de uso"
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 {terms ? <View style={styles.checkboxInner} /> : null}
               </TouchableOpacity>
@@ -106,35 +137,45 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
           </View>
 
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={handleCreate}
+              accessibilityRole="button"
+              testID="submit-create-account"
+            >
               <Text style={styles.createButtonText}>Crear cuenta</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  crearCuenta: {
+  // Se conservan las medidas de `css/` (Figma). `formField`, `checkboxSection`
+  // y `buttonContainer` tenian `width: 196` fijo, por eso el formulario se
+  // veia angosto y pegado a la izquierda; ahora el ancho es fluido.
+  screen: {
     flex: 1,
     width: '100%',
-    minHeight: '100%',
     backgroundColor: '#ffffff',
-    borderRadius: 20,
-    overflow: 'hidden',
   },
-  crearCuentaContainer: {
+  flex: {
     flex: 1,
-    width: '100%',
-    backgroundColor: '#ffffff',
-    overflow: 'hidden',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   crearCuentaHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'stretch',
     width: '100%',
+    maxWidth: 440,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 6,
@@ -143,50 +184,54 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
   },
   backButton: {
-    marginRight: 6,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
   },
   backIcon: {
-    fontSize: 22,
+    fontSize: 26,
     color: '#2a2a2a',
   },
   titulo: {
     color: '#2a2a2a',
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: '700',
-    lineHeight: 21,
+    lineHeight: 26,
   },
   crearCuentaForm: {
     width: '100%',
+    maxWidth: 440,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 9,
+    gap: 12,
   },
   formField: {
-    width: 196,
+    width: '100%',
     gap: 3,
   },
   fieldLabel: {
     color: '#5e5e5e',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '500',
-    lineHeight: 13.5,
+    lineHeight: 16,
   },
   inputContainer: {
     width: '100%',
-    minHeight: 34,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     borderRadius: 8,
     borderWidth: 1.34,
     borderColor: '#e0e0e0',
     backgroundColor: '#f4f4f4',
     color: '#2a2a2a',
-    fontSize: 11,
+    fontSize: 14,
   },
   checkboxSection: {
-    width: 196,
+    width: '100%',
     paddingTop: 2,
-    gap: 7,
+    gap: 10,
   },
   checkboxOption: {
     flexDirection: 'row',
@@ -195,35 +240,35 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   checkbox: {
-    width: 14,
-    height: 14,
-    borderRadius: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
     borderWidth: 1.34,
     borderColor: '#ff6b35',
     backgroundColor: '#fff0eb',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 1,
+    marginTop: 2,
   },
   checkboxInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 2,
+    width: 9,
+    height: 9,
+    borderRadius: 3,
     backgroundColor: '#ff6b35',
   },
   checkboxText: {
     flex: 1,
     color: '#5e5e5e',
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 13,
+    lineHeight: 18,
   },
   buttonContainer: {
-    width: 196,
+    width: '100%',
     paddingTop: 4,
   },
   createButton: {
     width: '100%',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 10,
     backgroundColor: '#ff6b35',
@@ -232,9 +277,8 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
-    lineHeight: 19.5,
+    lineHeight: 21,
   },
 });
-
