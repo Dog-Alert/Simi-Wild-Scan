@@ -215,13 +215,13 @@ describe('submitReport', () => {
     expect(conToken.headers.Authorization).toBe('Bearer jwt-123');
   });
 
-  it('usa el metodo POST sobre /api/reports', async () => {
+  it('usa el metodo POST sobre /v1/reports', async () => {
     global.fetch.mockResolvedValue(jsonResponse(201, { id: 1, status: 'PENDING', replayed: false }));
 
     await submitReport({ draft: validDraft(), clientReportId: CLIENT_REPORT_ID });
 
     const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toMatch(/\/api\/reports$/);
+    expect(url).toMatch(/\/v1\/reports$/);
     expect(options.method).toBe('POST');
   });
 

@@ -38,6 +38,39 @@ public class ApiExceptionHandler {
         );
     }
 
+        @ExceptionHandler(ReportLocationOutsideException.class)
+        public ResponseEntity<ErrorResponse> handleLocationOutside(
+                        ReportLocationOutsideException exception) {
+                return createResponse(
+                                HttpStatus.UNPROCESSABLE_ENTITY,
+                                "LOCATION_OUTSIDE_CREEL",
+                                exception.getMessage(),
+                                List.of()
+                );
+        }
+
+        @ExceptionHandler(InvalidPhotoException.class)
+        public ResponseEntity<ErrorResponse> handleInvalidPhoto(
+                        InvalidPhotoException exception) {
+                return createResponse(
+                                HttpStatus.UNPROCESSABLE_ENTITY,
+                                "INVALID_PHOTO",
+                                exception.getMessage(),
+                                List.of()
+                );
+        }
+
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<ErrorResponse> handleInvalidArgument(
+                        IllegalArgumentException exception) {
+                return createResponse(
+                                HttpStatus.UNPROCESSABLE_ENTITY,
+                                "INVALID_REPORT",
+                                exception.getMessage(),
+                                List.of()
+                );
+        }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(
             MethodArgumentNotValidException exception) {
