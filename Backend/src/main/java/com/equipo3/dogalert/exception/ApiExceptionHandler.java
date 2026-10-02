@@ -36,6 +36,50 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String CODE_INVALID_JSON = "INVALID_JSON";
     private static final String CODE_PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE";
     private static final String CODE_BAD_REQUEST = "BAD_REQUEST";
+    private static final String CODE_INVALID_TOKEN = "INVALID_TOKEN";
+    private static final String CODE_IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT";
+    private static final String CODE_REPORT_DELETED = "REPORT_DELETED";
+    private static final String CODE_REPORT_NOT_FOUND = "REPORT_NOT_FOUND";
+    private static final String CODE_REPORT_NOT_EDITABLE = "REPORT_NOT_EDITABLE";
+
+    @ExceptionHandler(InvalidTokenSubjectException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTokenSubject(
+            InvalidTokenSubjectException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(error(CODE_INVALID_TOKEN, exception.getMessage()));
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ErrorResponse> handleIdempotencyConflict(
+            IdempotencyConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(error(CODE_IDEMPOTENCY_CONFLICT, exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReportNotEditableException.class)
+    public ResponseEntity<ErrorResponse> handleReportNotEditable(
+            ReportNotEditableException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(error(CODE_REPORT_NOT_EDITABLE, exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReportDeletedException.class)
+    public ResponseEntity<ErrorResponse> handleReportDeleted(
+            ReportDeletedException exception) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(error(CODE_REPORT_DELETED, exception.getMessage()));
+    }
+
+    /**
+     * Un reporte ajeno responde 404 y no 403: confirmar que existe permitiria
+     * enumerar los reportes de otros autores. Ver 4.5 del SDD.
+     */
+    @ExceptionHandler(ReportNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleReportNotFound(
+            ReportNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(error(CODE_REPORT_NOT_FOUND, exception.getMessage()));
+    }
 
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
     public ResponseEntity<ErrorResponse> handleEmailAlreadyRegistered(
