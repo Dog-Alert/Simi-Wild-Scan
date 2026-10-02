@@ -16,6 +16,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
@@ -32,8 +33,26 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Indice del Requisito C del contrato de base de datos.
+ *
+ * <p>El orden de las columnas no es arbitrario. findOwnPage filtra por
+ * ID_Usuario y ordena por Fecha_Evento, ID_Reporte, asi que ID_Usuario va primero
+ * porque es la condicion de igualdad y las demas siguen en el orden del
+ * ORDER BY. Con las tres columnas el indice cubre el filtro y el orden completo:
+ * el motor resuelve la pagina sin ordenar los empates de Fecha_Evento por
+ * separado.
+ *
+ * <p>El nombre es el que debe usar tambien la migracion del equipo de base de
+ * datos. Si esa migracion crea un indice con otras columnas pero distinto nombre,
+ * acabarian coexistiendo dos indices identicos. Ver seccion 5 del contrato.
+ */
 @Entity
-@Table(name = "reportes")
+@Table(
+        name = "reportes",
+        indexes = @Index(
+                name = "idx_reportes_usuario_fecha",
+                columnList = "ID_Usuario, Fecha_Evento, ID_Reporte"))
 public class Report {
 
     @Id

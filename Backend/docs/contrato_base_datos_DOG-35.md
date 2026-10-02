@@ -5,13 +5,43 @@
 el backend necesita de Cloud SQL para que funcione la sincronización idempotente,
 la gestión de reportes propios y la base de anonimización.
 
-Quien implemente la migración debe traducirlo a los archivos `V` y `U` que le
-corresponden y numerar la versión siguiente disponible.
+Quien implemente la migración debe traducirlo a los archivos `V1.4` y `U1.4`.
+
+### Antes de escribir nada: los scripts actuales no se ejecutan
+
+`application.properties:19` tiene `spring.flyway.enabled=true`, pero **no define
+`spring.flyway.locations`**. Flyway solo busca en `classpath:db/migration`, y los
+scripts están en `Backend/src/database/migrations/`, fuera del classpath. Escribe
+un `V1.4` perfecto en esa carpeta y **no se va a aplicar**, sin error visible.
+
+Esto ya pasó: los Requisitos A, B y C están escritos en SQL desde el principio y
+ninguno se aplicó. El único mecanismo que ha modificado el esquema es
+`spring.jpa.hibernate.ddl-auto=update` de Hibernate, que crea tablas y columnas
+pero no índices compuestos ni ajustes de tipos.
+
+Hay que decidir, antes o junto con `V1.4`:
+
+- mover los scripts a `src/main/resources/db/migration`, o
+- fijar `spring.flyway.locations=classpath:...,filesystem:...`, o
+- dejarlos donde están y aplicar el DDL a mano.
+
+Y en algún momento hay que desactivar `ddl-auto=update`, porque en cuanto Flyway
+sea el dueño del esquema, Hibernate no debe seguir alterándolo al arrancar.
 
 - Ticket de backend: DOG-35 (sincronización idempotente y propiedad).
 - Ticket de base de datos: el que cubre "Crear los campos de actividad y
   conservación en Cloud SQL" y "Definir restricciones que eviten duplicados por
   reintento".
+- Requisitos de este documento: **A** tabla de idempotencia (sección 3),
+  **B** bitácora apta para el autor (sección 4), **C** índice de reportes propios
+  (sección 5) y **D** alineación de `Usuarios` con la entidad (sección 12).
+
+> **Duda que hay que resolver antes de ejecutar `V1.4`.** El esquema real de
+> `dogalert-prod-db` se construyó con `ddl-auto=update`, no con Flyway, así que
+> muchas columnas de este contrato **pueden ya existir** y el DDL de la sección 12
+> las duplicaría. La sección 12 empieza por las consultas que hay que correr para
+> averiguarlo. **Ejecutar ese DDL sin verificarlas antes es el error más probable
+> de esta migración.**
 
 ## 1. Lo que este ticket NO pide
 
@@ -76,19 +106,39 @@ UUID queda consumido y el reintento responde `410 REPORT_DELETED` en lugar de
 
 | Columna | Para qué la usa el backend |
 |---|---|
-| `Llave` | El encabezado `Idempotency-Key`. Es la llave de reserva: el backend inserta con `INSERT IGNORE` y decide según si afectó 0 o 1 filas. |
+| `Llave` | El encabezado `Idempotency-Key`. Es la llave de reserva. **La restricción `UNIQUE` sobre esta columna es la que garantiza que los reintentos no dupliquen reportes**, y por eso no es opcional. |
 | `ID_Reporte_Cliente` | El `clientReportId` que el móvil genera y reenvía. Unicidad aparte porque un cliente puede cambiar solo uno de los dos valores. |
 | `Hash_Payload` | SHA-256 del payload canónico. Permite distinguir un reintento idéntico (`200`) de una llave reutilizada con otro contenido (`409 IDEMPOTENCY_CONFLICT`), como exige la sección 6.6 del SDD. |
 | `ID_Usuario` | Identidad que reservó la llave. Un reintento desde otra cuenta responde `409` en vez de degradar un reporte de registrado a anónimo (sección 6.4.7 del SDD). |
 | `ID_Reporte` | Reporta creado. `NULL` significa que el autor lo borró. |
 | `Respuesta_HTTP` | Código de la primera respuesta, para reproducirla en el reenvío. |
 
+### Cómo reserva la llave el backend, y por qué el `UNIQUE` es crítico
+
+Una versión anterior de este documento decía que el backend inserta con
+`INSERT IGNORE` y decide según si afectó 0 o 1 filas. **Es falso, y la diferencia
+importa.** `ReportCreationTransaction` no usa `INSERT IGNORE` ni ninguna query
+nativa. Hace esto:
+
+1. `existsByKey(key)` y `existsByClientReportId(...)`: pre chequeo.
+2. Guarda el reporte y luego la fila de idempotencia.
+3. Si el `UNIQUE` salta, captura `DataIntegrityViolationException` y responde
+   `200` como reenvío.
+
+Ese `catch` es **la carrera entre dos peticiones simultáneas**, y solo se resuelve
+porque el `UNIQUE` rechaza a la segunda. Si la tabla se crea sin la restricción, el
+pre chequeo deja pasar a las dos, las dos escriben y **nadie ve un error: se crean
+dos reportes**, justo lo que el criterio de aceptación prohíbe.
+
+Por eso la sección 7 verifica la restricción, y no el mecanismo de inserción.
+
 ### `ID_Usuario` va sin llave foránea, a propósito
 
-`Usuarios.ID_Usuario` es `INT` en `V1.0` mientras la entidad `User` lo mapea como
+`Usuarios.ID_Usuario` es `INT` mientras la entidad `User` lo mapea como
 `Long`. Una llave foránea `BIGINT → INT` la rechaza MySQL. Además el backend no
 necesita integridad referencial aquí: el dato se conserva aunque la cuenta se
-borre, y esa incompatibilidad de tipos se corrige en un ticket aparte. Por eso
+borre, y esa incompatibilidad de tipos no se corrige en este ticket (queda
+anotada como deuda en el Requisito D, sección 12). Por eso
 `ID_Usuario` queda como columna suelta, sin `REFERENCES`.
 
 ## 4. Requisito B — Bitácora apta para acciones del autor
@@ -139,12 +189,38 @@ ni EXIF (sección 9.4 del SDD). Solo estado y metadatos técnicos.
 
 ```sql
 CREATE INDEX idx_reportes_usuario_fecha
-    ON reportes(ID_Usuario, Fecha_Evento);
+    ON reportes(ID_Usuario, Fecha_Evento, ID_Reporte);
 ```
 
 `GET /v1/me/reports` siempre filtra por `ID_Usuario`, ordena por `Fecha_Evento` y
 pagina por cursor opaco sobre `(Fecha_Evento, ID_Reporte)`. Sin este índice
 compuesto cada petición recorre la tabla completa de reportes.
+
+### Tres columnas, no dos
+
+La primera versión de este requisito pedía `(ID_Usuario, Fecha_Evento)`. Al
+contrastarlo con el query real de `ReportRepository.findOwnPage`, que termina en
+`order by r.eventAt desc, r.id desc`, las dos columnas se quedaban cortas: el índice
+ordenaba dentro del usuario por fecha, pero los empates de `Fecha_Evento` había que
+resolverlos aparte. Con `ID_Reporte` como tercera columna el índice cubre el filtro
+y el orden completo.
+
+El orden importa: `ID_Usuario` va primero porque es la condición de igualdad, y las
+otras dos siguen el orden del `ORDER BY`.
+
+### Ya está declarado en la entidad
+
+`Report.java` declara el índice con `@Index` y el mismo nombre
+`idx_reportes_usuario_fecha`. Se hizo por una razón concreta: en este repositorio
+**las migraciones no se ejecutan** (sección 6), así que un índice escrito solo en
+SQL no llegaría a crearse nunca. Es el mismo motivo por el que los Requisitos A y B
+siguen pendientes.
+
+**La migración del equipo de base de datos debe usar exactamente el mismo nombre y
+las mismas tres columnas.** Si el nombre difiere, quedan dos índices idénticos.
+
+`ReportIndexSchemaTests` lee los metadatos de la tabla y falla si el índice no
+existe, precisamente para que esto no vuelva a pasar en silencio.
 
 ## 6. Nota sobre el estado actual del esquema
 
@@ -166,12 +242,16 @@ Diferencias detectadas, que también están registradas como Error en Jira:
 | V1.2 | `reportes.ID_Usuario INT` | `Long` |
 
 Quien implemente esta migración debe confirmar contra el esquema **real** de
-`dogalert-prod-db` cuáles de estas columnas existen hoy, para no duplicarlas.
+`dogalert-prod-db` cuáles de estas columnas existen hoy, para no duplicarlas. El
+DDL que las alinea está en el **Requisito D (sección 12)**, y empieza por las
+consultas que hay que correr antes de tocar nada.
 
 ## 7. Cómo verificar
 
 ```sql
--- Las dos unicidades que sostienen la idempotencia.
+-- Requisito A: las dos unicidades que sostienen la idempotencia.
+-- non_unique debe ser 0 en ambas. Si no, la carrera entre dos reintentos
+-- simultaneos no tiene nada que la detenga.
 SELECT index_name, non_unique,
        GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columnas
 FROM information_schema.statistics
@@ -179,23 +259,47 @@ WHERE table_schema = DATABASE()
   AND table_name = 'idempotencia_reportes'
 GROUP BY index_name, non_unique;
 
--- La reserva debe afectar 1 la primera vez y 0 en cualquier reintento.
-INSERT IGNORE INTO idempotencia_reportes
+-- Prueba directa de la restricción: el segundo INSERT debe fallar por
+-- duplicado, no por nada más.
+INSERT INTO idempotencia_reportes
     (Llave, ID_Reporte_Cliente, Hash_Payload)
 VALUES
     ('11111111-1111-4111-8111-111111111111',
      '22222222-2222-4222-8222-222222222222', REPEAT('a', 64));
-SELECT ROW_COUNT();  -- 1
+-- Ok: 1 fila.
 
-INSERT IGNORE INTO idempotencia_reportes
+INSERT INTO idempotencia_reportes
     (Llave, ID_Reporte_Cliente, Hash_Payload)
 VALUES
     ('11111111-1111-4111-8111-111111111111',
      '22222222-2222-4222-8222-222222222222', REPEAT('a', 64));
-SELECT ROW_COUNT();  -- 0, la llave ya estaba reservada
+-- Debe fallar con ERROR 1062 (Duplicate entry). Si no falla, el UNIQUE no existe.
 
 DELETE FROM idempotencia_reportes
 WHERE Llave = '11111111-1111-4111-8111-111111111111';
+
+-- Requisito C: el indice de reportes propios, con sus tres columnas en orden.
+SELECT index_name, non_unique,
+       GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columnas
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND table_name = 'reportes'
+  AND index_name = 'idx_reportes_usuario_fecha'
+GROUP BY index_name, non_unique;
+-- Debe devolver ID_Usuario, Fecha_Evento, ID_Reporte, en ese orden.
+
+-- Requisito D: los valores que la retencion necesita. Si Estado_Cuenta no
+-- incluye ANONIMIZADA ni BLOQUEADA, el trabajo diario falla al escribir.
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name = 'Usuarios'
+  AND COLUMN_NAME IN
+      ('Nombre','Correo','Contrasena_Hash','Rol','Estado_Cuenta',
+       'Contacto_Autorizado','Ultimo_Login','Ultima_Actividad',
+       'Datos_Anonimizados','Fecha_Actualizacion')
+ORDER BY COLUMN_NAME;
+-- Nombre debe ser nullable: la retencion lo pone en NULL.
 ```
 
 Para verificar la bitácora, insertar una fila con `ID_Usuario_Admin` en `NULL`.
@@ -241,7 +345,20 @@ Consecuencias:
 
 La parte 3 implementa el trabajo diario que aplica **RF-044 del SRS**: eliminar
 los datos personales de una cuenta tras 12 meses sin un inicio de sesión exitoso.
-**No pide ningún cambio de esquema.** Usa solo columnas que ya existen.
+
+> **Corrección: esta parte sí necesita un cambio de esquema, y está en la
+> sección 12 (Requisito D).** Una versión anterior de este documento decía que no
+> pedía nada porque "usa solo columnas que ya existen". Es falso: **`V1.0` no define
+> `Datos_Anonimizados`, `Ultimo_Login`, `Ultima_Actividad` ni `Fecha_Actualizacion`**,
+> llama `Contrasena` a `Contrasena_Hash` y `Consentimiento_Contacto` a
+> `Contacto_Autorizado`, y su `Estado_Cuenta` es un ENUM que **no incluye
+> `ANONIMIZADA` ni `BLOQUEADA`**, que son los valores que escribe el código.
+> Además `V1.2_README.md:26` dice que `Usuarios` se conserva sin cambios, así que
+> ninguna migración posterior lo arregla.
+
+Si el esquema real se construyó con `ddl-auto=update`, algunas de esas columnas
+pueden existir ya. La sección 12 empieza por comprobarlo, porque un `ALTER` a ciegas
+las duplicaría o fallaría.
 
 > Nota de numeración: el SRS llama RF-044 a la anonimización y RF-045 a los
 > protocolos de seguridad, mientras que `11_pruebas_trazabilidad.md` desplaza todo
@@ -255,7 +372,7 @@ personales y se marca con `Datos_Anonimizados = true` y
 
 | Columna | Qué pasa | Por qué |
 |---|---|---|
-| `Nombre` | a `NULL` | Es dato personal (SDD 9.4). Es nullable, no da problema. |
+| `Nombre` | a `NULL` | Es dato personal (SDD 9.4). La entidad lo permite nulo, pero **`V1.0` lo define `NOT NULL`**: sin el Requisito D este `UPDATE` falla. |
 | `Correo` | a `anonimizado+<ID_Usuario>@dogalert.invalid` | Es dato personal y además es la llave de login. **No puede quedar `NULL`**: la columna es `NOT NULL` y `UNIQUE`. El centinela es único por cuenta y usa el TLD reservado `.invalid`, así que no es enrutable y no colisiona con un correo real. |
 | `Contrasena_Hash` | a un hash inservible | Es la credencial. **No puede quedar `NULL`** por `NOT NULL`. Se genera un secreto que nadie conserva y se hashea una sola vez para toda la tanda, así que ninguna contraseña puede satisfacerlo. |
 | `Telefono` | a `NULL` | Es dato personal. |
@@ -485,3 +602,137 @@ del servidor no es una razón para relajar el contrato.**
 El archivo se comprobó con un test temporal que lo carga con snakeyaml y recorre
 todos los `$ref`: 21 rutas, 27 esquemas, ninguna referencia rota. El test se borró
 después; no quedó en el repositorio porque lee un archivo de fuera del módulo.
+
+## 12. Requisito D — Alineación de `Usuarios` con la entidad
+
+Este requisito no estaba en el contrato original. Se añadió al auditar el
+documento contra `V1.0`, y **es el que puede hacer fallar la parte 3 en
+producción**.
+
+### Por qué hace falta
+
+`V1.0` creó `Usuarios` y **ninguna migración posterior la modifica**: `V1.2` y
+`V1.3` solo agregan llaves foráneas y renombran las tablas nuevas, y
+`V1.2_README.md:26` dice expresamente que `Usuarios` se conserva sin cambios. La
+tabla quedó en `INT` y con nombres y valores que ya no coinciden con la entidad.
+
+| La entidad espera | `V1.0` define | Consecuencia si no se corrige |
+|---|---|---|
+| `Estado_Cuenta` con `ANONIMIZADA` y `BLOQUEADA` | `ENUM('ACTIVA','INACTIVA','SUSPENDIDA')` | **El trabajo diario falla** al guardar `ANONIMIZADA`: error de truncamiento. |
+| `Nombre` nullable | `VARCHAR(150) NOT NULL` | **El trabajo diario falla** al ponerlo en `NULL`. |
+| `Rol` con `USUARIO` | `ENUM('ADMIN','USER')` | No arranca ni con datos: leer una fila con `USER` falla al convertirla al enum del código, y guardar una cuenta nueva intenta insertar `USUARIO`, que el `ENUM` no admite. Además el `DEFAULT 'USER'` no corresponde a ningún valor del código. |
+| `Contrasena_Hash` | `Contrasena` | No arranca: la columna no existe. |
+| `Contacto_Autorizado` | `Consentimiento_Contacto` | No arranca: la columna no existe. |
+| `Ultimo_Login` | `Fecha_Ultimo_Acceso` | No arranca, y es la columna con la que se mide el corte. |
+| `Ultima_Actividad` | no existe | No arranca. |
+| `Datos_Anonimizados` | no existe | No arranca: es el criterio que excluye a las cuentas ya limpiadas. |
+| `Fecha_Actualizacion` | no existe | No arranca. |
+| `Correo` de 254 | `VARCHAR(50)` | Un correo válido de más de 50 caracteres no entra. |
+| `Telefono` de 25 | `VARCHAR(20)` | Un teléfono válido de más de 20 caracteres no entra. |
+| `ID_Usuario` como `Long` | `INT` | Límite de 2 147 483 647 usuarios. Aceptable en el MVP. |
+
+### Primero comprobar, después alterar
+
+**El esquema real se construyó con `ddl-auto=update`, no con Flyway.** Es posible
+que estas columnas ya existan con el nombre correcto, y en ese caso el `ALTER`
+fallaría por columna duplicada o por nombre inexistente. Correr esto antes:
+
+```sql
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name = 'Usuarios'
+ORDER BY ORDINAL_POSITION;
+```
+
+- Si `Contrasena_Hash`, `Contacto_Autorizado`, `Ultimo_Login`, `Ultima_Actividad`,
+  `Datos_Anonimizados` y `Fecha_Actualizacion` ya están, y `Estado_Cuenta` admite
+  los tres valores y `Nombre` es nullable, **no hay nada que hacer**. La tabla la
+  construyó Hibernate a partir de la entidad.
+- Si faltan o no admiten los valores, aplicar el bloque de abajo, omitiendo las
+  líneas que no correspondan.
+
+### El DDL
+
+```sql
+-- Los dos ENUM se amplian antes de renombrar columnas, porque las filas
+-- El ENUM de Rol se amplía PRIMERO, conservando 'USER' temporalmente.
+-- Traducirlo antes no funciona: un UPDATE a un valor que el ENUM todavía no
+-- admite falla con "Data truncated for column 'Rol'".
+ALTER TABLE Usuarios
+    MODIFY COLUMN Rol ENUM('USUARIO','ADMIN','USER') NOT NULL DEFAULT 'USUARIO',
+    MODIFY COLUMN Estado_Cuenta
+        ENUM('ACTIVA','INACTIVA','SUSPENDIDA','BLOQUEADA','ANONIMIZADA')
+        NOT NULL DEFAULT 'ACTIVA',
+    MODIFY COLUMN Nombre VARCHAR(150) NULL,
+    MODIFY COLUMN Correo VARCHAR(254) NOT NULL,
+    MODIFY COLUMN Telefono VARCHAR(25) NULL,
+    MODIFY COLUMN Mayor_Edad TINYINT(1) NOT NULL DEFAULT 1,
+    MODIFY COLUMN Fecha_Creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHANGE COLUMN Contrasena Contrasena_Hash VARCHAR(255) NOT NULL,
+    CHANGE COLUMN Consentimiento_Contacto Contacto_Autorizado TINYINT(1) NOT NULL DEFAULT 0,
+    CHANGE COLUMN Fecha_Ultimo_Acceso Ultimo_Login TIMESTAMP NULL DEFAULT NULL,
+    ADD COLUMN Ultima_Actividad TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN Datos_Anonimizados TINYINT(1) NOT NULL DEFAULT 0,
+    ADD COLUMN Fecha_Actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP;
+
+-- Ahora que 'USUARIO' ya es un valor válido, se traduce el viejo.
+UPDATE Usuarios SET Rol = 'USUARIO' WHERE Rol = 'USER';
+
+-- Opcional, solo cuando el SELECT de abajo devuelva 0 filas: quitar 'USER'.
+ALTER TABLE Usuarios
+    MODIFY COLUMN Rol ENUM('USUARIO','ADMIN') NOT NULL DEFAULT 'USUARIO';
+```
+
+Tres detalles que no son evidentes:
+
+- **El orden importa.** Ampliar el `ENUM` antes de traducir. Al revés, el `UPDATE`
+  falla por truncamiento.
+- `Fecha_Ultimo_Acceso` se renombra a `Ultimo_Login` **y se le quita el
+  `ON UPDATE CURRENT_TIMESTAMP`**. `V1.0` lo traía y es peligroso: si se dejara, cada
+  actualización de la fila cambiaría la columna con la que se mide el periodo de
+  inactividad, y ninguna cuenta vencería nunca.
+- El bloque añade dos columnas `TIMESTAMP` con `CURRENT_TIMESTAMP` por defecto,
+  más la que ya traía `Fecha_Creacion`. MySQL solo permite varias así desde la 5.6;
+  en una 5.5 el `ALTER` entero falla. Verificar la versión antes.
+
+Sobre el `ENUM` de `Estado_Cuenta`: se conservan `INACTIVA` y `SUSPENDIDA` aunque
+el código no los use, porque podría haber filas con esos valores y eliminarlos
+convertiría un dato existente en error.
+
+`ID_Usuario` **no** se widen a `BIGINT` aquí. La entidad lo mapea como `Long`, pero
+cambiarlo obligaría a revisar la llave foránea de `Bitacora_Administrativa` y de las
+tablas del Requisito B, y para el MVP el límite de `INT` no aprieta. Queda como
+deuda técnica.
+
+### Verificación
+
+```sql
+-- 1) Debe incluir ANONIMIZADA y BLOQUEADA.
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name = 'Usuarios'
+  AND COLUMN_NAME IN ('Estado_Cuenta','Rol','Nombre');
+
+-- 2) Cuantas filas quedan con el valor viejo. Ejecutar ANTES del ALTER opcional
+--    que quita 'USER': despues, comparar contra un valor fuera del ENUM da error
+--    de truncamiento en vez de un 0.
+SELECT COUNT(*) FROM Usuarios WHERE Rol = 'USER';
+
+-- 3) La prueba de fuego: esto es lo que hace el trabajo diario.
+UPDATE Usuarios SET Estado_Cuenta = 'BLOQUEADA' WHERE ID_Usuario = -1;
+-- Debe Affected rows: 0 y ningún error. Si lanza truncamiento, falta el valor.
+```
+
+Y en la aplicación, con una cuenta real de prueba: arrancar, iniciar sesión, forzar
+`dogalert.retention.inactivity-months=0`, ejecutar el trabajo y comprobar que la
+cuenta queda `ANONIMIZADA` con el correo centinela.
+
+### Nota sobre el correo centinela
+
+La retención escribe `anonimizado+<ID_Usuario>@dogalert.invalid`. Con `Correo` en
+`VARCHAR(50)` el valor más largo posible es `anonimizado+` (12) + `BIGINT` (20) +
+`@dogalert.invalid` (17) = 49 caracteres: entra por poco. Por eso `Correo` se
+agranda a 254 en lugar de dejarlo en 50.
