@@ -230,7 +230,9 @@ entidades JPA, y el esquema real de desarrollo se ha construido por
 `spring.jpa.hibernate.ddl-auto=update`, no por Flyway. Flyway no encuentra los
 scripts porque viven en `Backend/src/database/migrations/`, fuera del classpath.
 
-Diferencias detectadas, que también están registradas como Error en Jira:
+Diferencias detectadas. **Ninguna está registrada todavía como Error en Jira:**
+hacerlo requiere acceso al proyecto y es un paso pendiente antes de cerrar
+DOG-35. La lista completa está en la sección 6.1.
 
 | Migración | Define | La entidad espera |
 |---|---|---|
@@ -245,6 +247,35 @@ Quien implemente esta migración debe confirmar contra el esquema **real** de
 `dogalert-prod-db` cuáles de estas columnas existen hoy, para no duplicarlas. El
 DDL que las alinea está en el **Requisito D (sección 12)**, y empieza por las
 consultas que hay que correr antes de tocar nada.
+
+### 6.1 Defectos pendientes de registrar como Error en Jira
+
+Detectados al trabajar este ticket. Los primeros seis bloquean a cualquiera que
+intente aplicar el Requisito D.
+
+| # | Defecto | Por qué importa | Acción sugerida |
+|---|---|---|---|
+| 1 | `spring.flyway.locations` sin definir y scripts fuera de `classpath:db/migration` | Flyway no ejecuta nada; el esquema real se ha construido con `ddl-auto=update`, así que el versionado es ficticio | Bug. Definir la propiedad y mover los scripts |
+| 2 | `Usuarios` de `V1.0` sin `Datos_Anonimizado`, `Estado_Cuenta` ni `Fecha_Actualizacion` | La retención no puede escribir sus columnas | Bug. Requisito D |
+| 3 | `Rol ENUM('ADMIN','USER')` contra `USUARIO`/`ADMIN` del código | No se puede leer ni escribir ninguna cuenta | Bug. Requisito D |
+| 4 | `Estado_Cuenta ENUM` sin `BLOQUEADA` ni `ANONIMIZADA` | El trabajo diario falla por truncamiento | Bug. Requisito D |
+| 5 | `Nombre VARCHAR(100) NOT NULL` | La anonimización lo deja en `NULL` y el trabajo diario revienta | Bug. Requiere admitir `NULL` |
+| 6 | Deriva de nombres: `Contrasena`, `Consentimiento_Contacto`, `Fecha_Ultimo_Acceso` | El código espera `Contrasena_Hash`, `Contacto_Autorizado`, `Ultimo_Login` | Bug. Requisito D |
+| 7 | `reportes.ID_Usuario INT` contra `Long` | Riesgo de desbordamiento a largo plazo | Deuda técnica, no bloqueante |
+| 8 | `Bitacora_Administrativa.ID_Usuario_Admin INT NOT NULL` | No admite `NULL`, así que el autor no puede corregir ni borrar sus reportes | Bug. RF-026 |
+| 9 | RF-026 sin cubrir: no se escribe bitácora | Requisito funcional abierto | Bug o fuera de alcance, decide PO |
+| 10 | Geometría oficial ausente (OPEN-002) | Con el polígono aproximado se pueden rechazar reportes legítimos del borde | Bug. Depende de OPEN-002 |
+
+Dos precisiones sobre esta lista:
+
+- El punto 1 fusiona dos síntomas de una sola causa. Flyway está habilitado y
+  no migra nada porque nunca encuentra los scripts; corregir uno de los dos lados
+  no basta.
+- Sobre el punto 9: si el autor ya corrigió o borró reportes en producción sin
+  que quede rastro, la definición de terminado de DOG-35 pide evidencia de la
+  autorización en servidor. La validación existe y tiene pruebas, pero la
+  auditoría no. Si eso no entra en este ticket, conviene que el PO mueva RF-026
+  explícitamente en lugar de dejarlo abierto por omisión.
 
 ## 7. Cómo verificar
 
