@@ -7,19 +7,19 @@ import com.equipo3.dogalert.report.Report;
 import com.equipo3.dogalert.report.ReportStatus;
 
 /**
- * Detalle de un reporte propio,schemas/OwnedReport del OpenAPI.
+ * Detalle de un reporte propio, schemas/OwnedReport del OpenAPI.
  *
  * <p>Incluye la coordenada exacta porque el lector es el autor del reporte. La
  * coordenada aproximada y la alimentacion de mapas y estadisticas usan otras rutas.
  *
- * <p>El campo replayed lo impone el allOf con ReportReceipt y no tiene sentido en
- * una lectura, asi que siempre viaja en false.
+ * <p>No declara replayed: ese campo distingue un reintento idempotente del alta y no
+ * tiene sentido al leer o editar. Se elimino de aqui cuando ReportReceipt paso a
+ * componerse sobre ReportIdentity.
  */
 public record OwnedReportResponse(
         Long id,
         UUID clientReportId,
         ReportStatus status,
-        boolean replayed,
         Instant eventAt,
         String eventType,
         String severity,
@@ -36,7 +36,6 @@ public record OwnedReportResponse(
                 report.getId(),
                 UUID.fromString(report.getClientReportId()),
                 report.getStatus(),
-                false,
                 report.getEventAt(),
                 report.getEventType(),
                 report.getSeverity().name(),

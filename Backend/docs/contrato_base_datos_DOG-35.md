@@ -422,3 +422,66 @@ reporte podría quedar sellado con una versión que nunca se usó para aceptarlo
   `poligonos_creel`. No se propone añadirla: el respaldo tiene su propia versión y
   una FK impediría por completo ese escenario.
 - La geometría oficial (OPEN-002) sigue pendiente.
+
+## 11. Estado de la parte 6 (contrato OpenAPI)
+
+`SDD/docs/sdd/openapi.yaml` sube a `1.2.0`. Se contrastó cada operación de reportes
+contra el código antes de editarla, así que los cambios son de contrato, no de
+criterio.
+
+### `replayed` ya no viaja en las lecturas
+
+`OwnedReport` se componía con `allOf` sobre `ReportReceipt`, y `ReportReceipt`
+exige `replayed`. El efecto era que **el detalle, la edición y el listado tenían
+que incluir un `replayed: false` inventado**, porque una lectura no es un reintento
+idempotente. Se partió el esquema en `ReportIdentity` (id, `clientReportId`,
+`status`) y `ReportReceipt` = `ReportIdentity` + `replayed`, de modo que el campo
+solo aparece donde significa algo.
+
+El campo también se borró de `OwnedReportResponse`. Nunca se leía: el único uso del
+accesor es `ReportController:62`, sobre `ReportReceipt`.
+
+### Se retiraron `externalToCreel` y su filtro
+
+Estaban en `PublicReport`, `AdminReport`, `HeatmapCell` y como filtro de
+`/admin/reports`. Tras la parte 2 **ningún reporte almacenado puede estar fuera de
+Creel**, así que ese filtro solo podía devolver cero filas y el booleano solo podía
+ser `false`. Se quitaron para no invitar a construir una vista que nunca tendría
+contenido. Queda anotado en la descripción del propio OpenAPI como desviación de
+la 08:35. Si más adelante se decide admitir reportes externos, el campo vuelve con
+el `422` y no antes.
+
+### Códigos que ya no coinciden con el código
+
+- `Profile.role` decía `USER`; el enum `Role` es `USUARIO`.
+- `Profile.status` decía `ACTIVE, ANONYMIZED, DISABLED`; `AccountStatus` es
+  `ACTIVA, ANONIMIZADA, BLOQUEADA`. Se adoptó la nomenclatura de la base, que además
+  es donde la retención llega a `ANONIMIZADA`.
+- El envoltorio `Error` no declaraba el `timestamp` que `ApiExceptionHandler`
+  siempre incluye.
+
+### Respuestas que faltaban
+
+Se comprobó operación por operación contra `ApiExceptionHandler`:
+
+- Las cuatro de `/me/reports` no declaraban `401`, aunque sí exigían JWT.
+- `PATCH /me/reports/{reportId}` no declaraba `404`, que es lo que devuelve cuando
+  el reporte es de otro autor.
+- `POST /reports` no declaraba `410 REPORT_DELETED`, `413` ni `400`.
+- Faltaba el `400` de cursor inválido en el listado.
+
+Se añadieron además los `401` que faltaban en las rutas `/admin/**` y en
+`/me/contact-consent`, por el mismo motivo.
+
+### Lo que se dejó como estaba
+
+`Idempotency-Key` sigue declarado `required: true`. El controlador lo acepta
+ausente y entonces toma el `clientReportId` como llave, pero la 04:89 lo declara
+obligatorio, y un cliente que cumpla el contrato siempre lo envía. **La tolerancia
+del servidor no es una razón para relajar el contrato.**
+
+### Verificación
+
+El archivo se comprobó con un test temporal que lo carga con snakeyaml y recorre
+todos los `$ref`: 21 rutas, 27 esquemas, ninguna referencia rota. El test se borró
+después; no quedó en el repositorio porque lee un archivo de fuera del módulo.
