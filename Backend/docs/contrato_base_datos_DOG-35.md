@@ -201,3 +201,38 @@ WHERE Llave = '11111111-1111-4111-8111-111111111111';
 Para verificar la bitácora, insertar una fila con `ID_Usuario_Admin` en `NULL`.
 Con la columna en `NOT NULL` el `INSERT` falla, y eso confirma que el requisito B
 sigue pendiente.
+
+## 8. Estado de la parte 2 (reportes propios)
+
+La parte 2 del ticket implementa `GET /v1/me/reports`, `GET/PATCH/DELETE
+/v1/me/reports/{id}` sin pedir **ningún** cambio de esquema adicional. Requiere
+solo lo ya descrito en las secciones 4 y 5.
+
+### Lo que queda sin cubrir: RF-026
+
+RF-026 exige conservar «una entrada técnica mínima que indique que ocurrió una
+eliminación». El backend **no escribe en `Bitacora_Administrativa`**, y por lo
+miento **RF-026 no está cubierto**. El motivo es el Requisito B de la sección 4:
+la columna `ID_Usuario_Admin` es `INT NOT NULL` y el borrado lo ejecuta el autor,
+no un administrador, así que no existe un valor admisible que guardar. Además su
+columna `ID_Registro` apunta a `Registros`, tabla que ya no existe tras el
+renombrado de `V1.3`/`U1.3`.
+
+Cuando se aplique el Requisito B, faltarán la entidad y las escrituras de
+`MODIFICACION` y `ELIMINACION` con `origen=autor` (sección 4).
+
+### Desviación consciente del SDD 8.4:35
+
+El SDD 8.4 dice que al crear o editar «se evalúa el punto y guarda
+`Fuera_Creel`». La decisión del equipo fue **no aceptar reportes fuera del
+polígono**: tanto `POST /v1/reports` como `PATCH /v1/me/reports/{id}` responden
+`422 LOCATION_OUTSIDE_CREEL`.
+
+Consecuencias:
+
+- `reportes` **no** necesita columna `Fuera_Creel`; no se pide nada nuevo.
+- Por invariante, ningún reporte puede quedar fuera del Creel, así que las
+  consultas públicas futuras no necesitan filtrar por esa bandera.
+- Cuando exista la geometría oficial aprobada (pendiente bloqueante del propio
+  SDD 8.4), esta regla deberá revisarse: hoy el polígono es una configuración
+  aproximada y podría rechazar reportes legítimos de la fringe.

@@ -5,12 +5,15 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.equipo3.dogalert.evidence.ReportEvidence;
@@ -20,8 +23,12 @@ import com.equipo3.dogalert.exception.IdempotencyKeyTakenException;
 import com.equipo3.dogalert.exception.InvalidPhotoException;
 import com.equipo3.dogalert.exception.ReportDeletedException;
 import com.equipo3.dogalert.exception.ReportLocationOutsideException;
+import com.equipo3.dogalert.exception.ReportNotFoundException;
+import com.equipo3.dogalert.report.dto.OwnedReportPage;
+import com.equipo3.dogalert.report.dto.OwnedReportResponse;
 import com.equipo3.dogalert.report.dto.ReportCreateRequest;
 import com.equipo3.dogalert.report.dto.ReportReceipt;
+import com.equipo3.dogalert.report.dto.ReportUpdateRequest;
 
 /**
  * Orquesta la creacion de reportes.
@@ -39,6 +46,13 @@ import com.equipo3.dogalert.report.dto.ReportReceipt;
 public class ReportService {
     private static final long MAX_REPORT_AGE_DAYS = 365;
     private static final String[] PHOTO_TYPES = { "image/jpeg", "image/png", "image/heic" };
+
+    /**
+     * Tamano de pagina de GET /v1/me/reports. El SDD fija el cursor pero no el
+     * tamano, asi que se toma 20 como el valor que no castiga al movil con
+     * paginas enormes ni obliga atravelar en mas de una peticion.
+     */
+    private static final int PAGE_SIZE = 20;
 
     private final ReportRepository reportRepository;
     private final ReportIdempotencyRepository idempotencyRepository;
@@ -157,6 +171,111 @@ public class ReportService {
         } catch (IOException exception) {
             throw new InvalidPhotoException("No se pudo leer la foto");
         }
+    }
+
+    /**
+     * Lista los reportes del autor, del mas reciente al mas antiguo.
+     *
+     * <p>No acepta filtros a proposito: el OpenAPI solo declara el cursor para esta
+     * operacion, y filtrar por el autor ya lo hace el query.
+     */
+    @Transactional(readOnly = true)
+    public OwnedReportPage listar(Authentication authentication, String cursor) {
+        Long userId = requireUserId(authentication);
+
+        ReportCursor position = (cursor == null || cursor.isBlank())
+                ? null
+                : ReportCursor.decode(cursor);
+
+        List<Report> rows = reportRepository.findOwnPage(
+                userId,
+                position == null ? null : position.eventAt(),
+                position == null ? null : position.reportId(),
+                PageRequest.of(0, PAGE_SIZE + 1));
+
+        boolean hasMore = rows.size() > PAGE_SIZE;
+        List<Report> page = hasMore ? rows.subList(0, PAGE_SIZE) : rows;
+
+        return new OwnedReportPage(
+                page.stream().map(OwnedReportResponse::from).toList(),
+                hasMore ? ReportCursor.of(page.get(page.size() - 1)).encode() : null);
+    }
+
+    @Transactional(readOnly = true)
+    public OwnedReportResponse detalle(Authentication authentication, Long reportId) {
+        return OwnedReportResponse.from(findOwned(authentication, reportId));
+    }
+
+    /**
+     * Edita un reporte propio y lo devuelve a PENDING.
+     *
+     * <p>La validacion completa ocurre antes de tocar la entidad: si el punto queda
+     * fuera de Creel o la fecha es invalida, el reporte queda intacto y la
+     * transaccion no llega a escribir.
+     */
+    @Transactional
+    public OwnedReportResponse actualizar(
+            Authentication authentication,
+            Long reportId,
+            ReportUpdateRequest request) {
+        Report report = findOwned(authentication, reportId);
+
+        validateDate(request.eventAt());
+        requireInsideCreel(request.location().latitude(), request.location().longitude());
+
+        report.editByAuthor(new ReportEdit(
+                request.eventAt(),
+                request.eventType(),
+                parse(Severity.class, request.severity(), "severity"),
+                parse(Certainty.class, request.certainty(), "certainty"),
+                request.dogCount(),
+                parse(DogSize.class, request.size(), "size"),
+                request.color(),
+                request.colorUndetermined(),
+                parse(CollarPresence.class, request.collar(), "collar"),
+                request.description().trim(),
+                BigDecimal.valueOf(request.location().latitude()),
+                BigDecimal.valueOf(request.location().longitude()),
+                creelBoundary.version()));
+
+        return OwnedReportResponse.from(reportRepository.saveAndFlush(report));
+    }
+
+    /**
+     * Borrado fisico del reporte y de su evidencia.
+     *
+     * <p>La fila de idempotencia sobrevive con ID_Reporte en NULL, de modo que un
+     * reintento del POST original recibe 410 y no vuelve a crear el reporte. Ver
+     * DEC-007 y el requerimiento de idempotencia del contrato de base de datos.
+     */
+    @Transactional
+    public void borrar(Authentication authentication, Long reportId) {
+        Report report = findOwned(authentication, reportId);
+        reportRepository.delete(report);
+        reportRepository.flush();
+    }
+
+    /**
+     * Localiza el reporte exigiendo que sea del autor. Un reporte ajeno y uno
+     * inexistente son el mismo error a proposito: responder 403 confirmaria que el
+     * reporte existe y permitiria enumerar los de otros autores.
+     */
+    private Report findOwned(Authentication authentication, Long reportId) {
+        Long userId = requireUserId(authentication);
+        return reportRepository.findByIdAndUser_Id(reportId, userId)
+                .orElseThrow(ReportNotFoundException::new);
+    }
+
+    /**
+     * /v1/me/** exige identidad, asi que un principal sin subject utilizable es un
+     * token invalido y no un visitante sin sesion.
+     */
+    private Long requireUserId(Authentication authentication) {
+        Long userId = userId(authentication);
+        if (userId == null) {
+            throw new InvalidTokenSubjectException();
+        }
+        return userId;
     }
 
     private Report draft(ReportCreateRequest request, PhotoContent photoContent) {

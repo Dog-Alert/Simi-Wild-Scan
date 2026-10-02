@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 import com.equipo3.dogalert.evidence.ReportEvidence;
+import com.equipo3.dogalert.exception.ReportNotEditableException;
 import com.equipo3.dogalert.user.User;
 
 import jakarta.persistence.CascadeType;
@@ -147,6 +148,44 @@ public class Report {
         }
 
         hasPhoto = evidence != null;
+    }
+
+    /**
+     * Aplica una edicion del autor y deja el reporte en PENDING.
+     *
+     * <p>Editar invalida la verificacion previa: mientras no se vuelva a revisar,
+     * el reporte no puede alimentar mapas, estadisticas ni exportaciones, que solo
+     * consumen VERIFIED. Ver 7.8 y el diagrama report_state.mmd, linea
+     * "VERIFIED --> PENDING: edicion del autor".
+     *
+     * <p>REJECTED, DUPLICATE y ARCHIVED no se editan desde esta ruta: el diagrama
+     * solo los devuelve a PENDING por via administrativa ("reabrir" o "corregir
+     * relacion"), asi que un cambio del autor se rechaza con 409.
+     */
+    public void editByAuthor(ReportEdit edit) {
+        if (!isEditableByAuthor()) {
+            throw new ReportNotEditableException();
+        }
+
+        eventAt = edit.eventAt();
+        eventType = edit.eventType();
+        severity = edit.severity();
+        certainty = edit.certainty();
+        dogCount = edit.dogCount();
+        size = edit.size();
+        color = edit.color();
+        colorUndetermined = edit.colorUndetermined();
+        collar = edit.collar();
+        description = edit.description();
+        latitude = edit.latitude();
+        longitude = edit.longitude();
+        polygonVersion = edit.polygonVersion();
+
+        status = ReportStatus.PENDING;
+    }
+
+    public boolean isEditableByAuthor() {
+        return status == ReportStatus.PENDING || status == ReportStatus.VERIFIED;
     }
 
     @AssertTrue(message = "el color debe indicarse o marcarse como indeterminado")

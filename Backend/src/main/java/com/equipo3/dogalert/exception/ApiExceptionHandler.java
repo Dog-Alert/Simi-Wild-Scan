@@ -42,6 +42,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String CODE_REPORT_NOT_FOUND = "REPORT_NOT_FOUND";
     private static final String CODE_REPORT_NOT_EDITABLE = "REPORT_NOT_EDITABLE";
 
+    @ExceptionHandler(InvalidCursorException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCursor(InvalidCursorException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(error(CODE_BAD_REQUEST, exception.getMessage()));
+    }
+
     @ExceptionHandler(InvalidTokenSubjectException.class)
     public ResponseEntity<ErrorResponse> handleInvalidTokenSubject(
             InvalidTokenSubjectException exception) {
