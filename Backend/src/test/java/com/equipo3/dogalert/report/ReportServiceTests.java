@@ -20,23 +20,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.equipo3.dogalert.exception.ReportLocationOutsideException;
 import com.equipo3.dogalert.report.dto.CoordinateRequest;
 import com.equipo3.dogalert.report.dto.ReportCreateRequest;
+import com.equipo3.dogalert.user.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTests {
     @Mock private ReportRepository reportRepository;
+    @Mock private UserRepository userRepository;
     private ReportService reportService;
 
     @BeforeEach
     void setUp() {
         reportService = new ReportService(
                 reportRepository,
-            new CreelBoundary("creel-test", "27.72,-107.68;27.72,-107.54;27.84,-107.54;27.84,-107.68"));
+                userRepository,
+                new CreelBoundary("creel-test", "27.72,-107.68;27.72,-107.54;27.84,-107.54;27.84,-107.68"));
     }
 
     @Test
     void validAnonymousReportIsStoredAsPendingWithoutExactLocationInReceipt() {
         UUID id = UUID.randomUUID();
-        when(reportRepository.findByClientReportId(id)).thenReturn(Optional.empty());
+        when(reportRepository.findByClientReportId(id.toString())).thenReturn(Optional.empty());
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> {
             Report report = invocation.getArgument(0);
             report.setId(42L);
@@ -53,10 +56,10 @@ class ReportServiceTests {
     @Test
     void externalLocationIsRejectedBeforePersistence() {
         UUID id = UUID.randomUUID();
-        when(reportRepository.findByClientReportId(id)).thenReturn(Optional.empty());
+        when(reportRepository.findByClientReportId(id.toString())).thenReturn(Optional.empty());
         ReportCreateRequest request = new ReportCreateRequest(
                 id, Instant.now().minusSeconds(3600), "SIGHTING", "LOW", "HIGH", 1,
-                "MEDIUM", null, true, "NO", "Descripción suficientemente larga para validar el reporte",
+                "MEDIUM", null, true, "NO", "DescripciÃ³n suficientemente larga para validar el reporte",
                 new CoordinateRequest(28.0, -107.60), true);
 
         assertThrows(ReportLocationOutsideException.class,
@@ -69,9 +72,9 @@ class ReportServiceTests {
         UUID id = UUID.randomUUID();
         Report existing = new Report();
         existing.setId(7L);
-        existing.setClientReportId(id);
+        existing.setClientReportId(id.toString());
         existing.setStatus(ReportStatus.PENDING);
-        when(reportRepository.findByClientReportId(id)).thenReturn(Optional.of(existing));
+        when(reportRepository.findByClientReportId(id.toString())).thenReturn(Optional.of(existing));
 
         var receipt = reportService.create(validRequest(id), null, null, id);
 
@@ -83,7 +86,7 @@ class ReportServiceTests {
     private ReportCreateRequest validRequest(UUID id) {
         return new ReportCreateRequest(
                 id, Instant.now().minusSeconds(3600), "SIGHTING", "LOW", "HIGH", 1,
-                "MEDIUM", null, true, "NO", "Descripción suficientemente larga para validar el reporte",
+                "MEDIUM", null, true, "NO", "DescripciÃ³n suficientemente larga para validar el reporte",
                 new CoordinateRequest(27.78, -107.60), true);
     }
 }

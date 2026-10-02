@@ -1,5 +1,9 @@
 package com.equipo3.dogalert.report;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -10,22 +14,30 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.equipo3.dogalert.evidence.ReportEvidence;
 import com.equipo3.dogalert.exception.InvalidPhotoException;
 import com.equipo3.dogalert.exception.ReportLocationOutsideException;
 import com.equipo3.dogalert.report.dto.ReportCreateRequest;
 import com.equipo3.dogalert.report.dto.ReportReceipt;
+import com.equipo3.dogalert.user.User;
+import com.equipo3.dogalert.user.UserRepository;
 
 @Service
 public class ReportService {
-    private static final long MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+    private static final long MAX_PHOTO_BYTES = ReportEvidence.MAX_PHOTO_BYTES;
     private static final long MAX_REPORT_AGE_DAYS = 365;
-    private static final String[] PHOTO_TYPES = { "image/jpeg", "image/png", "image/webp" };
+    private static final String[] PHOTO_TYPES = { "image/jpeg", "image/png", "image/heic" };
 
     private final ReportRepository reportRepository;
+    private final UserRepository userRepository;
     private final CreelBoundary creelBoundary;
 
-    public ReportService(ReportRepository reportRepository, CreelBoundary creelBoundary) {
+    public ReportService(
+            ReportRepository reportRepository,
+            UserRepository userRepository,
+            CreelBoundary creelBoundary) {
         this.reportRepository = reportRepository;
+        this.userRepository = userRepository;
         this.creelBoundary = creelBoundary;
     }
 
@@ -39,7 +51,7 @@ public class ReportService {
             throw new IllegalArgumentException("Idempotency-Key debe coincidir con clientReportId");
         }
 
-        var existing = reportRepository.findByClientReportId(request.clientReportId());
+        var existing = reportRepository.findByClientReportId(request.clientReportId().toString());
         if (existing.isPresent()) return receipt(existing.get(), true);
 
         validateDate(request.eventAt());
@@ -49,22 +61,22 @@ public class ReportService {
         }
 
         Report report = new Report();
-        report.setClientReportId(request.clientReportId());
-        report.setUserId(userId(authentication));
+        report.setClientReportId(request.clientReportId().toString());
+        report.setUser(user(authentication));
         report.setEventAt(request.eventAt());
         report.setEventType(request.eventType());
-        report.setSeverity(request.severity());
-        report.setCertainty(request.certainty());
+        report.setSeverity(parse(Severity.class, request.severity(), "severity"));
+        report.setCertainty(parse(Certainty.class, request.certainty(), "certainty"));
         report.setDogCount(request.dogCount());
-        report.setSize(request.size());
+        report.setSize(parse(DogSize.class, request.size(), "size"));
         report.setColor(request.color());
         report.setColorUndetermined(request.colorUndetermined());
-        report.setCollar(request.collar());
+        report.setCollar(parse(CollarPresence.class, request.collar(), "collar"));
         report.setDescription(request.description().trim());
-        report.setLatitude(request.location().latitude());
-        report.setLongitude(request.location().longitude());
-        report.setBoundaryVersion(creelBoundary.version());
-        report.setHasPhoto(photo != null && !photo.isEmpty());
+        report.setLatitude(BigDecimal.valueOf(request.location().latitude()));
+        report.setLongitude(BigDecimal.valueOf(request.location().longitude()));
+        report.setPolygonVersion(creelBoundary.version());
+        if (photo != null && !photo.isEmpty()) report.attachEvidence(evidence(photo));
         report.setConsentAccepted(request.consentAccepted());
         report.setStatus(ReportStatus.PENDING);
         return receipt(reportRepository.save(report), false);
@@ -82,17 +94,39 @@ public class ReportService {
         if (photo == null || photo.isEmpty()) return;
         if (photo.getSize() > MAX_PHOTO_BYTES
                 || java.util.Arrays.stream(PHOTO_TYPES).noneMatch(type -> type.equalsIgnoreCase(photo.getContentType()))) {
-            throw new InvalidPhotoException("La foto debe ser JPEG, PNG o WEBP y no superar 5 MB");
+            throw new InvalidPhotoException("La foto debe ser JPEG, PNG o HEIC y no superar 1 MB");
         }
     }
 
-    private Long userId(Authentication authentication) {
+    private ReportEvidence evidence(MultipartFile photo) {
+        try {
+            byte[] bytes = photo.getBytes();
+            ReportEvidence evidence = new ReportEvidence();
+            evidence.setPhoto(bytes);
+            evidence.setMimeType(photo.getContentType().toLowerCase());
+            evidence.setSha256(MessageDigest.getInstance("SHA-256").digest(bytes));
+            return evidence;
+        } catch (IOException | NoSuchAlgorithmException exception) {
+            throw new InvalidPhotoException("No se pudo leer la foto");
+        }
+    }
+
+    private static <E extends Enum<E>> E parse(Class<E> type, String value, String field) {
+        try {
+            return Enum.valueOf(type, value.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Valor inválido para " + field + ": " + value);
+        }
+    }
+
+    private User user(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof Jwt jwt)) return null;
-        return Long.valueOf(jwt.getSubject());
+        return userRepository.getReferenceById(Long.valueOf(jwt.getSubject()));
     }
 
     private ReportReceipt receipt(Report report, boolean replayed) {
-        return new ReportReceipt(report.getId(), report.getClientReportId(), report.getStatus(), replayed);
+        return new ReportReceipt(
+                report.getId(), UUID.fromString(report.getClientReportId()), report.getStatus(), replayed);
     }
 }

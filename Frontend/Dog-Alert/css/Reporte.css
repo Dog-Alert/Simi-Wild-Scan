@@ -1,0 +1,272 @@
+/* Reporte
+ *
+ * Export de Figma de la pantalla "Detalles" (paso 2 de 2 del reporte).
+ * Archivo de referencia del diseno: la implementacion en React Native vive en
+ * `screens/ReporteScreen.js` con `StyleSheet`, igual que el resto de pantallas.
+ *
+ * Decisiones tomadas sobre el diseño:
+ *  - La gravedad NO aparece: la asigna quien revisa el reporte (ver SEVERITIES).
+ *  - "Cantidad" usa los rangos del diseño (1 / 2-3 / 4+) y cada rango guarda su
+ *    cota inferior como conteo exacto (ver DOG_COUNT_BUCKETS).
+ *  - Se agrega el chip "No sé" a Color y Tamaño: RF-010 los exige.
+ *  - Se agrega el campo de fecha y hora: RF-010 lo exige y el diseño lo omite.
+ *  - El diseño exporta dos botones "Enviar reporte" identicos; queda uno solo.
+ */
+
+/* Container */
+.reporte-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0px;
+
+  width: 100%;
+  flex: 1;
+
+  background: #f4f4f4;
+
+  border-radius: 20px;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 12px 8px;
+  gap: 6px;
+
+  width: 100%;
+  height: 40.34px;
+
+  background: #ffffff;
+  border-bottom: 1.34px solid #e0e0e0;
+}
+
+.header-title {
+  font-family: 'Outfit';
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 21px;
+
+  color: #2a2a2a;
+}
+
+/* Contenido scrolleable */
+.body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 12px 14px;
+  gap: 9px;
+
+  width: 100%;
+  flex: 1;
+}
+
+/* Seccion */
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+
+  width: 100%;
+}
+
+.section-label {
+  font-family: 'DM Sans';
+  font-weight: 600;
+  font-size: 9px;
+  line-height: 14px;
+
+  color: #5e5e5e;
+}
+
+.section-hint {
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 14px;
+
+  color: #9e9e9e;
+}
+
+.chips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Chip */
+.chip {
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4px 8px;
+  gap: 10px;
+
+  height: 24px;
+
+  border-radius: 20px;
+}
+
+.chip--selected {
+  background: #ff6b35;
+  border: 1.34px solid #ff6b35;
+}
+
+.chip--idle {
+  background: #f4f4f4;
+  border: 1.34px solid #e0e0e0;
+}
+
+.chip-text {
+  font-family: 'DM Sans';
+  font-weight: 500;
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.chip-text--selected {
+  color: #ffffff;
+}
+
+.chip-text--idle {
+  color: #5e5e5e;
+}
+
+/* Fecha y hora */
+.datetime-row {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+
+  width: 100%;
+}
+
+.field {
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 7px 10px;
+
+  flex: 1;
+
+  background: #f4f4f4;
+  border: 1.34px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.field--error {
+  border-color: #b3261e;
+}
+
+.field-input {
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 15px;
+
+  color: #2a2a2a;
+}
+
+.field-placeholder {
+  color: #9e9e9e;
+}
+
+/* Descripcion */
+.description-field {
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 7px 10px;
+
+  width: 100%;
+  min-height: 44px;
+
+  background: #f4f4f4;
+  border: 1.34px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.description-input {
+  width: 100%;
+
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 15px;
+
+  color: #2a2a2a;
+}
+
+.description-placeholder {
+  color: #9e9e9e;
+}
+
+/* Contador de caracteres */
+.counter {
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 8px;
+  line-height: 12px;
+
+  color: #9e9e9e;
+}
+
+/* Error de seccion */
+.section-error {
+  font-family: 'DM Sans';
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 14px;
+
+  color: #b3261e;
+}
+
+/* Boton de envio */
+.submit-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+
+  width: 100%;
+  height: 40px;
+
+  background: #ff6b35;
+  border: none;
+  border-radius: 10px;
+}
+
+.submit-button--disabled {
+  background: #9e9e9e;
+}
+
+.submit-text {
+  font-family: 'Outfit';
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 20px;
+
+  color: #ffffff;
+  text-align: center;
+}
