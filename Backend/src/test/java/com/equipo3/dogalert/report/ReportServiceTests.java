@@ -57,7 +57,7 @@ class ReportServiceTests {
                 reportRepository,
                 idempotencyRepository,
                 creationTransaction,
-                new CreelBoundary(
+                CreelBoundary.fromProperties(
                         "creel-test",
                         "27.72,-107.68;27.72,-107.54;27.84,-107.54;27.84,-107.68"),
                 payloadHasher);

@@ -82,11 +82,13 @@ public class ReportService {
 
         PhotoContent photoContent = readPhoto(photo);
         validateDate(request.eventAt());
-        requireInsideCreel(request.location().latitude(), request.location().longitude());
+        CreelEvaluation creel = requireInsideCreel(
+                request.location().latitude(),
+                request.location().longitude());
 
         String payloadHash = payloadHasher.hash(request, photoContent.bytes());
         Long userId = userId(authentication);
-        Report draft = draft(request, photoContent);
+        Report draft = draft(request, photoContent, creel.polygonVersion());
 
         try {
             return creationTransaction.submit(key, draft, userId, payloadHash);
@@ -146,10 +148,17 @@ public class ReportService {
         }
     }
 
-    private void requireInsideCreel(double latitude, double longitude) {
-        if (!creelBoundary.contains(latitude, longitude)) {
+    /**
+     * Evalua el punto y devuelve la version del poligono que se uso, para que el
+     * reporte quede sellado con la misma geometria que lo acepto.
+     */
+    private CreelEvaluation requireInsideCreel(double latitude, double longitude) {
+        CreelEvaluation evaluation = creelBoundary.evaluate(latitude, longitude);
+
+        if (!evaluation.inside()) {
             throw new ReportLocationOutsideException();
         }
+        return evaluation;
     }
 
     /**
@@ -221,7 +230,9 @@ public class ReportService {
         Report report = findOwned(authentication, reportId);
 
         validateDate(request.eventAt());
-        requireInsideCreel(request.location().latitude(), request.location().longitude());
+        CreelEvaluation creel = requireInsideCreel(
+                request.location().latitude(),
+                request.location().longitude());
 
         report.editByAuthor(new ReportEdit(
                 request.eventAt(),
@@ -236,7 +247,7 @@ public class ReportService {
                 request.description().trim(),
                 BigDecimal.valueOf(request.location().latitude()),
                 BigDecimal.valueOf(request.location().longitude()),
-                creelBoundary.version()));
+                creel.polygonVersion()));
 
         return OwnedReportResponse.from(reportRepository.saveAndFlush(report));
     }
@@ -278,7 +289,7 @@ public class ReportService {
         return userId;
     }
 
-    private Report draft(ReportCreateRequest request, PhotoContent photoContent) {
+    private Report draft(ReportCreateRequest request, PhotoContent photoContent, String polygonVersion) {
         Report report = new Report();
         report.setClientReportId(request.clientReportId().toString());
         report.setEventAt(request.eventAt());
@@ -293,7 +304,7 @@ public class ReportService {
         report.setDescription(request.description().trim());
         report.setLatitude(BigDecimal.valueOf(request.location().latitude()));
         report.setLongitude(BigDecimal.valueOf(request.location().longitude()));
-        report.setPolygonVersion(creelBoundary.version());
+        report.setPolygonVersion(polygonVersion);
         report.setConsentAccepted(request.consentAccepted());
         if (photoContent.bytes() != null) {
             report.attachEvidence(evidence(photoContent));

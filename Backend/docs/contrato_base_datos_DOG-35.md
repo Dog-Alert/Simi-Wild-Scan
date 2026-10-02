@@ -337,3 +337,88 @@ No se aplicó ningún DDL porque este ticket no escribe SQL.
 - **Está apagado.** `dogalert.retention.enabled` viene en `false` hasta que Jazmín
   revise la política. El apagado es total: sin bean no hay tarea programada que
   pueda dispararse.
+
+## 10. Estado de la parte 4 (geometría de Creel)
+
+La parte 4 convierte `poligonos_creel` en la fuente de verdad del límite, con el
+polígono de configuración como respaldo. **No pide ningún cambio de esquema.**
+
+> Decisión del equipo que se aparta de los documentos: el SDD 8.4:35 dice que el
+> polígono «se carga como configuración versionada» y no menciona la tabla. Ningún
+> documento del repositorio nombra `poligonos_creel` como fuente de verdad, ni
+> define un respaldo. Se eligió la tabla porque `V1.2` ya la creó para esto.
+
+### La tabla está vacía a propósito, y eso cambia qué decide en producción
+
+`V1.2_README.md:46-48` dice que la geometría oficial «no se inventa ni se incluye en
+el repositorio» y que la fila se insertará cuando el equipo reciba el GeoJSON
+aprobado. Mientras eso no ocurra, **el polígono que decide es el de configuración**.
+
+Eso no es un detalle menor: el polígono de respaldo es un rectángulo aproximado, y
+la regla acordada es rechazar lo que caiga fuera. Un punto real del borde del Creel
+puede quedar fuera de un rectángulo aproximado y ser rechazado. Las métricas
+oficiales tampoco deben afirmarse: el SDD 8.4 marca la geometría como **pendiente
+bloqueante** y `10_despliegue_operacion.md:96` la exige antes de producción.
+
+### SHA-256: es un identificador, no una comprobación de integridad
+
+La columna `SHA256 CHAR(64) UNIQUE` se usa como identificador del archivo aprobado,
+que es lo que implye `V1.2_README.md` («cuando el equipo reciba el GeoJSON aprobado
+y pueda calcular su SHA-256»). **No se verifica al leer**, por dos razones medidas
+en este ticket:
+
+1. **`GeoJSON` es de tipo JSON.** Al guardar, el motor normaliza el documento: quita
+   espacios y reformatea. Un digest calculado sobre el archivo entregado por el
+   equipo no coincide con el del texto que sale de la base.
+2. **Al enlazar un `String` a una columna JSON, el valor se guarda como cadena
+   escapada**, no como objeto. Es decir, lo que llega a la aplicación es
+   `"{\"type\":\"Polygon\",...}"`. Esto se verificó en pruebas: la raíz del nodo
+   JSON resulta ser de tipo `STRING`.
+
+Verificar el digest contra lo que sale de la base habría **descartado la geometría
+oficial** y devuelto el polígono aproximado, que es justo el resultado contrario al
+deseado. Por eso el código compara y **solo avisa por log**.
+
+Quien necesite un digest reproducible debe calcularlo sobre la forma canónica
+(`jq -c`), y aun así conviene verificar contra el motor real antes de fiarse.
+
+### El parser acepta las dos formas de almacenamiento
+
+Por el punto 2 anterior, `CreelGeometry.fromGeoJson` acepta tanto un objeto JSON
+como un JSON que en realidad es una cadena con el documento escapado dentro, y lo
+desenvuelve. Sin esa segunda rama, un polígono insertado por la aplicación nunca
+llegaría a leerse. Hay una prueba que cubre exactamente ese caso.
+
+También rechaza coordenadas fuera de rango con un mensaje que dice que se esperaba
+`[longitud, latitud]`, porque el orden invertido produce un polígono en otro lugar
+del planeta en vez de un error visible.
+
+### Validation y sellado usan la misma evaluación
+
+`CreelBoundary.evaluate(latitude, longitude)` devuelve a la vez si el punto está
+dentro y **la versión del polígono usada**. Se cambió desde `contains()` y
+`version()` por separado: si el polígono se recarga entre ambas llamadas, un
+reporte podría quedar sellado con una versión que nunca se usó para aceptarlo.
+`ReportService` recibe una sola evaluación y la usa para validar y para guardar
+`Poligono_Version`.
+
+### Caché y fallo de base
+
+- La geometría se lee **una vez y se reutiliza** durante
+  `dogalert.creel.cache-ttl-seconds` (3600 por defecto). Consultar la tabla en cada
+  alta sería una consulta por petición para un dato que solo cambia cuando alguien
+  carga una geometría nueva.
+- **Un fallo de base no impide crear reportes.** Si la consulta lanza excepción, se
+  avisa y se usa el respaldo, que es lo que se estaría usando igual sin la tabla.
+- Un polígono activo ilegible (GeoJSON inválido) también cae al respaldo, para no
+  dejar el servicio sin límite.
+
+### Lo que sigue sin cubrirse
+
+- `T-PUB-006` («polígono versionado y bandera») queda **sin cubrir**: la bandera
+  `Fuera_Creel` no existe por decisión de la parte 2, y el filtrado del panel por
+  «pertenencia o no a Creel» (RF-037) no está implementado.
+- `reportes.Poligono_Version` sigue siendo un `VARCHAR(50)` **sin llave foránea** a
+  `poligonos_creel`. No se propone añadirla: el respaldo tiene su propia versión y
+  una FK impediría por completo ese escenario.
+- La geometría oficial (OPEN-002) sigue pendiente.
