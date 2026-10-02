@@ -236,3 +236,104 @@ Consecuencias:
 - Cuando exista la geometría oficial aprobada (pendiente bloqueante del propio
   SDD 8.4), esta regla deberá revisarse: hoy el polígono es una configuración
   aproximada y podría rechazar reportes legítimos de la fringe.
+
+## 9. Estado de la parte 3 (retención de cuentas)
+
+La parte 3 implementa el trabajo diario que aplica **RF-044 del SRS**: eliminar
+los datos personales de una cuenta tras 12 meses sin un inicio de sesión exitoso.
+**No pide ningún cambio de esquema.** Usa solo columnas que ya existen.
+
+> Nota de numeración: el SRS llama RF-044 a la anonimización y RF-045 a los
+> protocolos de seguridad, mientras que `11_pruebas_trazabilidad.md` desplaza todo
+> en uno. El SRS es la fuente autoritativa y es el que se sigue aquí.
+
+### Qué se borra y qué sobrevive
+
+La fila de `Usuarios` **no se elimina ni se anonimiza**: se le quitan los datos
+personales y se marca con `Datos_Anonimizados = true` y
+`Estado_Cuenta = 'ANONIMIZADA'`.
+
+| Columna | Qué pasa | Por qué |
+|---|---|---|
+| `Nombre` | a `NULL` | Es dato personal (SDD 9.4). Es nullable, no da problema. |
+| `Correo` | a `anonimizado+<ID_Usuario>@dogalert.invalid` | Es dato personal y además es la llave de login. **No puede quedar `NULL`**: la columna es `NOT NULL` y `UNIQUE`. El centinela es único por cuenta y usa el TLD reservado `.invalid`, así que no es enrutable y no colisiona con un correo real. |
+| `Contrasena_Hash` | a un hash inservible | Es la credencial. **No puede quedar `NULL`** por `NOT NULL`. Se genera un secreto que nadie conserva y se hashea una sola vez para toda la tanda, así que ninguna contraseña puede satisfacerlo. |
+| `Telefono` | a `NULL` | Es dato personal. |
+| `Mayor_Edad`, `Contacto_Autorizado`, `Aviso_Privacidad_Aceptado` | a `false` | SDD 9.5 paso 2: «borra correo/teléfono y consentimiento». |
+| `Datos_Anonimizados`, `Estado_Cuenta` | a `true` / `ANONIMIZADA` | SDD 9.5 pasos 1 y 4. También bloquea el login, porque `AuthService` exige `ACTIVA` y `dataAnonymized = false`. |
+| `Ultimo_Login`, `Ultima_Actividad`, `Fecha_Creacion` | **intactos** | Son la evidencia de cuándo venció el periodo y no son dato personal. |
+| `Rol` | **intacto** | Los administradores quedan fuera del trabajo: no puede dejar al sistema sin cuenta operativa. |
+
+### Los reportes siguen vinculados a la cuenta
+
+SDD 9.5 paso 3 pide «desvincula reportes conservados». **La decisión del equipo fue
+conservarlos vinculados**, porque RF-043 obliga a conservarlos y el SRS no pide
+desvincular nada. Con la fila sin PII, un reporte vinculado ya no expone datos
+personales, y a diferencia del `NULL` esta opción **no destruye atribución de
+forma irreversible**.
+
+Consecuencia: al anonimizarse, esos reportes dejan de aparecer en
+`GET /v1/me/reports`, porque esa consulta filtra por `ID_Usuario`. Es coherente con
+la anonimización, pero conviene saberlo.
+
+### Desviación consciente del SDD 9.5: el corte se mide desde `Ultimo_Login`
+
+SDD 9.5 dice «selecciona perfiles activos con `Ultima_Actividad < now - 12 meses»».
+La implementación usa `COALESCE(Ultimo_Login, Fecha_Creacion)`, porque **RF-044
+habla de «inicio de sesión exitoso»** y `Ultima_Actividad` mediría otra cosa.
+`Ultima_Actividad` además está bloqueada en `AuthService.login:90-93`, así que
+ninguna petición la actualiza y sería un criterio ENGÑOSO.
+
+El `COALESCE` cubre a quien se registró pero nunca ha iniciado sesión: para esas
+cuentas `Ultimo_Login` es `NULL` y el periodo se cuenta desde `Fecha_Creacion`.
+
+Además el trabajo incluye las cuentas `BLOQUEADA` (el SDD solo menciona las
+«activas»): una cuenta bloqueada también retiene datos personales y, si se
+excluyeran, esa PII se quedaría indefinidamente.
+
+### Sesiones: política elegida
+
+SDD 9.5 paso 1 dice «invalida la cuenta y sus sesiones propias **según la política
+elegida**». La política elegida es: **no se revocan los JWT ya emitidos**.
+
+`JwtService` no consulta la base y `SecurityConfig` solo valida firma y
+expiración, así que un token emitido antes de anonimizar sigue sirviendo hasta su
+caducidad, que son 60 minutos (`dogalert.jwt.expiration-minutes`). Se acepta el
+coste porque en ese plazo la fila ya no tiene PII y el token no da acceso a nada
+nuevo. Revocar exigiría una consulta a base por petición.
+
+### Lo que queda sin cubrir: RNF-PRI-05 y RF-042
+
+RNF-PRI-05 pide que el trabajo diario «produzca evidencia de auditoría sin
+conservar el dato eliminado», y su trazabilidad (`T-RET-003`) lo comprueba. Al no
+escribir en `Bitacora_Administrativa` por el bloqueo de la sección 4, **la parte
+de auditoría de RNF-PRI-05 y RF-042 no está cubierta**.
+
+Lo que sí queda es la evidencia técnica en el log: corte aplicado y conteo de
+candidatos, anonimizados y fallidos, **sin ningún dato personal**. Eso no
+sustituye a la bitácora en base de datos.
+
+### Índice recomendado (no aplicado)
+
+La consulta del trabajo ordena y filtra por `Datos_Anonimizados` y
+`COALESCE(Ultimo_Login, Fecha_Creacion)`. El índice que propone el SDD
+(`IX_Usuarios_Retencion` sobre `Datos_Anonimizados, Ultima_Actividad`) **no
+sirve para esta consulta**, porque usa otra columna y no cubre la expresión del
+`COALESCE`. Mientras el volumen de usuarios sea de MVP no urge, pero si crece
+conviene que el DBA valore un índice sobre `(Datos_Anonimizados, Ultimo_Login)`.
+
+No se aplicó ningún DDL porque este ticket no escribe SQL.
+
+### Dos cosas que este trabajo deliberadamente no hace
+
+- **No borra reportes por antigüedad.** `dogalert.retention.min-report-years`
+  (5 años, RF-043) está declarada pero **sin usar**: `12_decisiones_y_pendientes.md`
+  deja OPEN-005 sin resolver y el SDD 9.5 dice que el MVP no borra al cumplir los
+  cinco años.
+- **No pide llave distribuida.** Cloud Run escala horizontalmente, así que el
+  cron puede dispararse en varias réplicas a la vez. Es aceptable porque la
+  operación es idempotente (una cuenta ya limpiada sale del criterio), pero se
+  duplica trabajo. Si las réplicas crecen, hará falta quartz o shedlock.
+- **Está apagado.** `dogalert.retention.enabled` viene en `false` hasta que Jazmín
+  revise la política. El apagado es total: sin bean no hay tarea programada que
+  pueda dispararse.
