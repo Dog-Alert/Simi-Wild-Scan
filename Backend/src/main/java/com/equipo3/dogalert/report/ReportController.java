@@ -24,13 +24,15 @@ public class ReportController {
 
     public ReportController(ReportService reportService) { this.reportService = reportService; }
 
-    @PostMapping(consumes = "multipart/form-data")
+    @PostMapping(consumes = {"multipart/form-data", "application/json"})
     @ResponseStatus(HttpStatus.CREATED)
     public ReportReceipt create(
-            @Valid @RequestPart("payload") ReportCreateRequest request,
+            @Valid @RequestPart(value = "payload", required = false) ReportCreateRequest payload,
+            @Valid ReportCreateRequest requestJson,
             @RequestPart(value = "photo", required = false) MultipartFile photo,
-            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID idempotencyKey,
             Authentication authentication) {
-        return reportService.create(request, photo, authentication, idempotencyKey);
+        ReportCreateRequest actual = payload != null ? payload : requestJson;
+        return reportService.create(actual, photo, authentication, idempotencyKey);
     }
 }

@@ -27,4 +27,10 @@ public record ReportCreateRequest(
         @NotNull @Valid CoordinateRequest location,
         @AssertTrue(message = "Debes aceptar el consentimiento para enviar el reporte")
         boolean consentAccepted
-) {}
+) {
+    @AssertTrue(message = "Debes especificar el color o marcar 'color indeterminado'")
+    public boolean isColorSelectionValid() {
+        boolean hasColor = color != null && !color.isBlank();
+        return hasColor ^ colorUndetermined;
+    }
+}

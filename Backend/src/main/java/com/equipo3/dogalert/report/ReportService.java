@@ -47,6 +47,9 @@ public class ReportService {
             MultipartFile photo,
             Authentication authentication,
             UUID idempotencyKey) {
+        if (idempotencyKey == null) {
+            idempotencyKey = request.clientReportId() != null ? request.clientReportId() : UUID.randomUUID();
+        }
         if (request.clientReportId() == null || !request.clientReportId().equals(idempotencyKey)) {
             throw new IllegalArgumentException("Idempotency-Key debe coincidir con clientReportId");
         }
