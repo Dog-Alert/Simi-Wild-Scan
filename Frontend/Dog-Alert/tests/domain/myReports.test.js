@@ -1,4 +1,4 @@
-import { buildMyReportEntries, eventTypeLabel } from '../../domain/myReports';
+import { buildMyReportEntries, eventTypeLabel, toReportDetail } from '../../domain/myReports';
 import { SYNC_STATES } from '../../domain/syncState';
 
 function queueItem(localId, overrides = {}) {
@@ -99,5 +99,53 @@ describe('buildMyReportEntries', () => {
     });
 
     expect(entries.map((entry) => entry.key)).toEqual(['local:b']);
+  });
+});
+
+describe('toReportDetail', () => {
+  it('toma los datos del reporte del servidor', () => {
+    const [entry] = buildMyReportEntries({
+      serverReports: [
+        serverReport(1, { severity: 'HIGH', dogCount: 4, size: 'LARGE', description: 'Grupo de perros grandes sin collar.' }),
+      ],
+    });
+
+    expect(toReportDetail(entry)).toEqual({
+      title: 'Ataque a mascota',
+      eventAt: '2026-10-05T10:00:00.000Z',
+      status: { tone: 'verified', label: 'Verificado' },
+      photoUri: null,
+      severity: 'Alta',
+      dogCount: '4+',
+      size: 'Grande',
+      description: 'Grupo de perros grandes sin collar.',
+    });
+  });
+
+  it('toma los datos del borrador de la cola', () => {
+    const [entry] = buildMyReportEntries({
+      queueItems: [
+        queueItem('a', {
+          summary: { eventType: 'SIGHTING', eventAt: null },
+          draft: { severity: null, dogCount: '2', size: 'SMALL', description: 'Un perro.', photo: null },
+        }),
+      ],
+    });
+
+    expect(toReportDetail(entry)).toMatchObject({
+      title: 'Avistamiento',
+      severity: 'Por asignar',
+      dogCount: '2–3',
+      size: 'Pequeño',
+      description: 'Un perro.',
+    });
+  });
+
+  it('tolera un reporte anonimo ya sincronizado sin borrador', () => {
+    const [entry] = buildMyReportEntries({
+      queueItems: [queueItem('a', { state: SYNC_STATES.synced, draft: null })],
+    });
+
+    expect(toReportDetail(entry)).toMatchObject({ dogCount: '—', size: '—', description: null });
   });
 });

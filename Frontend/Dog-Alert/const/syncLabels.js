@@ -47,6 +47,17 @@ export function formatReportDate(value) {
   return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+export function formatReportDateTime(value) {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const time = date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${formatReportDate(value)} · ${time} hrs`;
+}
+
 export function formatElapsed(since, now = Date.now()) {
   const minutes = Math.floor(Math.max(0, now - since) / 60000);
 

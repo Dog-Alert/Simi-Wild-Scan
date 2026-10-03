@@ -1,8 +1,19 @@
-import { EVENT_TYPES } from '../const/reportCatalogs';
+import {
+  DOG_COUNT_BUCKETS,
+  DOG_SIZES,
+  EVENT_TYPES,
+  SEVERITIES,
+  resolveDogCountBucket,
+} from '../const/reportCatalogs';
 import { getServerStatus, getSyncStatus } from '../const/syncLabels';
 import { SYNC_STATES } from './syncState';
 
-const EVENT_TYPE_LABELS = Object.fromEntries(EVENT_TYPES.map((type) => [type.value, type.label]));
+const labelsOf = (options) => Object.fromEntries(options.map((option) => [option.value, option.label]));
+
+const EVENT_TYPE_LABELS = labelsOf(EVENT_TYPES);
+const SEVERITY_LABELS = labelsOf(SEVERITIES);
+const SIZE_LABELS = labelsOf(DOG_SIZES);
+const DOG_COUNT_LABELS = labelsOf(DOG_COUNT_BUCKETS);
 
 export function eventTypeLabel(eventType) {
   return EVENT_TYPE_LABELS[eventType] || eventType || 'Reporte';
@@ -51,4 +62,20 @@ export function buildMyReportEntries({ serverReports = [], queueItems = [], user
     .map(localEntry);
 
   return [...local, ...serverReports.map(serverEntry)];
+}
+
+export function toReportDetail(entry) {
+  const fields = entry.report || (entry.item && entry.item.draft) || {};
+  const dogCount = resolveDogCountBucket(fields.dogCount);
+
+  return {
+    title: eventTypeLabel(entry.eventType),
+    eventAt: entry.eventAt,
+    status: entry.status,
+    photoUri: entry.photoUri,
+    severity: SEVERITY_LABELS[fields.severity] || 'Por asignar',
+    dogCount: dogCount ? DOG_COUNT_LABELS[dogCount] : '—',
+    size: SIZE_LABELS[fields.size] || '—',
+    description: fields.description || null,
+  };
 }
