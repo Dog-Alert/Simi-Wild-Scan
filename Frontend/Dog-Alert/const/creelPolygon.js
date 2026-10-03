@@ -149,6 +149,9 @@ const CREEL_RING = [
   [-107.6386067, 27.7446108],
 ];
 
+// Cambiarla al reemplazar CREEL_RING; se guarda con cada reporte de la cola.
+export const CREEL_BOUNDARY_VERSION = 'osm-way-352907131';
+
 export const CREEL_BOUNDARY = {
   type: 'Polygon',
   coordinates: [CREEL_RING],

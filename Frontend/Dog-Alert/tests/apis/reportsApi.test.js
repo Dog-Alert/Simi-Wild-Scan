@@ -36,6 +36,7 @@ function validDraft(overrides = {}) {
   return {
     eventAt: VALID_DATE,
     eventType: 'ATTACK_PET',
+    consentAccepted: true,
     severity: 'HIGH',
     certainty: 'MEDIUM',
     dogCount: '2',
@@ -253,7 +254,7 @@ describe('submitReport', () => {
         422,
         {
           error: {
-            code: 'REPORT_LOCATION_OUTSIDE_CREEL',
+            code: 'LOCATION_OUTSIDE_CREEL',
             message: 'Outside polygon',
             requestId: 'req-1'
           }
@@ -316,6 +317,22 @@ describe('submitReport', () => {
 
     expect(error.code).toBe(REPORT_ERROR_CODES.conflict);
     expect(error.status).toBe(409);
+  });
+
+  it('identifica un reporte ya eliminado con 410', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse(410, { error: { code: 'REPORT_DELETED', message: 'gone', requestId: 'r' } }, {
+        'content-type': 'application/json'
+      })
+    );
+
+    const error = await submitReport({
+      draft: validDraft(),
+      clientReportId: CLIENT_REPORT_ID
+    }).catch((e) => e);
+
+    expect(error.code).toBe(REPORT_ERROR_CODES.deleted);
+    expect(error.status).toBe(410);
   });
 
   it('identifica limite de tasa con 429 y lee Retry-After', async () => {

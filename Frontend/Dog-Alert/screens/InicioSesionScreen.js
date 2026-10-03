@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-export default function IniciarSesionScreen({ onBack, onCreateAccount, onLogin }) {
+export default function IniciarSesionScreen({ onBack, onCreateAccount, onLogin, error }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -99,6 +99,7 @@ export default function IniciarSesionScreen({ onBack, onCreateAccount, onLogin }
 
             <Text style={styles.forgotPassword}>¿Olvidaste tu contraseña?</Text>
 
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <TouchableOpacity
               style={styles.loginButton}
               onPress={handleLogin}
@@ -291,5 +292,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 18,
+  },
+  errorText: {
+    color: '#b3261e',
+    fontSize: 13,
+    marginBottom: 10,
+    textAlign: 'center',
   },
 });

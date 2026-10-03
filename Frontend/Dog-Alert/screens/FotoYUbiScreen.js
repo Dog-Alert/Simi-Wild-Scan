@@ -46,7 +46,14 @@ const STEPS = ['Foto y ubicación', 'Detalles'];
  * tras un menu, porque es la unica salida cuando el permiso de GPS esta
  * denegado, no hay senal, o la persona quiere corregirse a mano.
  */
-export default function FotoYUbiScreen({ draft, onChange, onNext, onBack }) {
+export default function FotoYUbiScreen({
+  draft,
+  onChange,
+  onNext,
+  onBack,
+  title = 'Nuevo reporte',
+  photoLocked = false,
+}) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [exifSuggestion, setExifSuggestion] = useState(null);
@@ -188,7 +195,7 @@ export default function FotoYUbiScreen({ draft, onChange, onNext, onBack }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerIcon}>📍</Text>
-        <Text style={styles.headerTitle}>Nuevo reporte</Text>
+        <Text style={styles.headerTitle}>{title}</Text>
       </View>
 
       {/* El teclado del celular tapaba los campos de latitud y longitud, que
@@ -246,25 +253,31 @@ export default function FotoYUbiScreen({ draft, onChange, onNext, onBack }) {
             </View>
           )}
 
-          <View style={styles.photoActions}>
-            <TouchableOpacity
-              style={styles.btn}
-              onPress={handleTakePhoto}
-              disabled={busy}
-              accessibilityRole="button"
-            >
-              <Text style={styles.btnText}>Abrir cámara</Text>
-            </TouchableOpacity>
+          {photoLocked ? (
+            <Text style={styles.photoPlaceholderText}>
+              La foto no se puede cambiar al editar un reporte enviado.
+            </Text>
+          ) : (
+            <View style={styles.photoActions}>
+              <TouchableOpacity
+                style={styles.btn}
+                onPress={handleTakePhoto}
+                disabled={busy}
+                accessibilityRole="button"
+              >
+                <Text style={styles.btnText}>Abrir cámara</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.btn}
-              onPress={handlePickPhoto}
-              disabled={busy}
-              accessibilityRole="button"
-            >
-              <Text style={styles.btnText}>Seleccionar foto</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                style={styles.btn}
+                onPress={handlePickPhoto}
+                disabled={busy}
+                accessibilityRole="button"
+              >
+                <Text style={styles.btnText}>Seleccionar foto</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <View style={styles.locationCard}>

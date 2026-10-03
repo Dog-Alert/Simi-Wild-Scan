@@ -14,12 +14,14 @@ import StepIndicator from '../components/report/StepIndicator';
 import {
   CERTAINTIES,
   COLORS,
+  CONSENT_LABEL,
   COLLAR_PRESENCES,
   DOG_COUNT_BUCKETS,
   DOG_SIZES,
   EVENT_TYPES,
   OTHER_EVENT_TYPE,
   REPORT_LIMITS,
+  SEVERITIES,
   UNDETERMINED_VALUE,
   dogCountBucketFor
 } from '../const/reportCatalogs';
@@ -44,9 +46,6 @@ function Section({ label, error, children }) {
 /**
  * Paso 2 del reporte: detalles del incidente y envio.
  *
- * El formulario no pide la gravedad: la asigna quien revisa el reporte despues
- * (ver `SEVERITIES` en `const/reportCatalogs.js`).
- *
  * "Cantidad" ofrece los rangos del diseño (1 / 2-3 / 4+) y cada rango guarda su
  * cota inferior como conteo exacto, porque el contrato exige un entero y nunca
  * conviene reportar mas perros de los que se vieron.
@@ -57,7 +56,10 @@ export default function ReporteScreen({
   onSubmit,
   onBack,
   submitError,
-  submitting
+  submitting,
+  title = 'Nuevo reporte',
+  submitLabel = 'Enviar reporte',
+  askConsent = true,
 }) {
   const initialDateTime = useMemo(() => formatEventAtInput(draft.eventAt), []);
   const [dateText, setDateText] = useState(initialDateTime.date);
@@ -103,13 +105,14 @@ export default function ReporteScreen({
   };
 
   const activeDogBucket = dogCountBucketFor(draft.dogCount);
+  const selectedSeverity = SEVERITIES.find((option) => option.value === draft.severity);
   const remaining = descriptionRemaining(draft.description);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerIcon}>📍</Text>
-        <Text style={styles.headerTitle}>Nuevo reporte</Text>
+        <Text style={styles.headerTitle}>{title}</Text>
       </View>
 
       <ScrollView
@@ -177,6 +180,21 @@ export default function ReporteScreen({
               />
             </View>
           ) : null}
+        </Section>
+
+        <Section label="Gravedad" error={errors.severity}>
+          <View style={styles.chips}>
+            {SEVERITIES.map((option) => (
+              <OptionChip
+                key={option.value}
+                label={option.label}
+                selected={draft.severity === option.value}
+                onPress={() => onChange({ severity: option.value })}
+                testID={`chip-severity-${option.value}`}
+              />
+            ))}
+          </View>
+          {selectedSeverity ? <Text style={styles.help}>{selectedSeverity.help}</Text> : null}
         </Section>
 
         <Section label="Certeza" error={errors.certainty}>
@@ -272,6 +290,27 @@ export default function ReporteScreen({
           <Text style={styles.counter}>{remaining}</Text>
         </Section>
 
+        {askConsent ? (
+          <View style={styles.section}>
+            <View style={styles.consentRow}>
+              <TouchableOpacity
+                style={styles.checkbox}
+                onPress={() => onChange({ consentAccepted: !draft.consentAccepted })}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: Boolean(draft.consentAccepted) }}
+                accessibilityLabel={CONSENT_LABEL}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                {draft.consentAccepted ? <View style={styles.checkboxInner} /> : null}
+              </TouchableOpacity>
+              <Text style={styles.consentText}>{CONSENT_LABEL}</Text>
+            </View>
+            {errors.consentAccepted ? (
+              <Text style={styles.sectionError}>{errors.consentAccepted}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {submitError && !hasFieldErrors ? (
           <View style={styles.notice}>
             <Text style={styles.noticeText}>{submitError.message}</Text>
@@ -283,9 +322,9 @@ export default function ReporteScreen({
           onPress={handleSubmit}
           disabled={submitting}
           accessibilityRole="button"
-          accessibilityLabel="Enviar reporte"
+          accessibilityLabel={submitLabel}
         >
-          <Text style={styles.submitText}>Enviar reporte</Text>
+          <Text style={styles.submitText}>{submitLabel}</Text>
         </TouchableOpacity>
 
         {submitting ? <ActivityIndicator color="#ff6b35" /> : null}
@@ -299,6 +338,38 @@ export default function ReporteScreen({
 }
 
 const styles = StyleSheet.create({
+  help: {
+    fontSize: 12,
+    color: '#5e5e5e',
+    marginTop: 6,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.34,
+    borderColor: '#ff6b35',
+    backgroundColor: '#fff0eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxInner: {
+    width: 9,
+    height: 9,
+    borderRadius: 3,
+    backgroundColor: '#ff6b35',
+  },
+  consentText: {
+    flex: 1,
+    color: '#5e5e5e',
+    fontSize: 13,
+    lineHeight: 18,
+  },
   container: {
     flex: 1,
     width: '100%',

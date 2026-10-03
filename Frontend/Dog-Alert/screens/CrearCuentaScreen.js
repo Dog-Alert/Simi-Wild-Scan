@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-export default function CrearCuentaScreen({ onBack, onCreate }) {
+export default function CrearCuentaScreen({ onBack, onCreate, error }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -137,6 +137,7 @@ export default function CrearCuentaScreen({ onBack, onCreate }) {
           </View>
 
           <View style={styles.buttonContainer}>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <TouchableOpacity
               style={styles.createButton}
               onPress={handleCreate}
@@ -280,5 +281,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     lineHeight: 21,
+  },
+  errorText: {
+    color: '#b3261e',
+    fontSize: 13,
+    marginBottom: 10,
+    textAlign: 'center',
   },
 });

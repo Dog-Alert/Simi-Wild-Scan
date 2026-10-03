@@ -399,3 +399,19 @@ describe('FotoYUbiScreen - ubicacion manual', () => {
     });
   });
 });
+
+describe('FotoYUbiScreen - edicion', () => {
+  it('usa el titulo recibido', () => {
+    const { getByText } = renderScreen({ title: 'Editar reporte' });
+
+    expect(getByText('Editar reporte')).toBeTruthy();
+  });
+
+  it('bloquea el cambio de foto en un reporte enviado', () => {
+    const { getByText, queryByText } = renderScreen({ photoLocked: true });
+
+    expect(queryByText('Abrir cámara')).toBeNull();
+    expect(queryByText('Seleccionar foto')).toBeNull();
+    expect(getByText(/La foto no se puede cambiar/)).toBeTruthy();
+  });
+});

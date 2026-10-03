@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,22 +18,33 @@ import ProtocoloDeSeguridad from './screens/ProtocoloDeSeguridad';
 import PublicInfoScreen from './screens/PublicInfoScreen';
 import FotoYUbiScreen from './screens/FotoYUbiScreen';
 import ReporteScreen from './screens/ReporteScreen';
+import SinConexionScreen from './screens/SinConexionScreen';
+import MisReportesScreen from './screens/MisReportesScreen';
+import ReporteDetalleScreen from './screens/ReporteDetalleScreen';
 import { useAuth } from './hooks/UseAuth';
 import { useReportDraft } from './hooks/UseReportDraft';
-import { createClientReportId, submitReport } from './apis/reportsApi';
+import { useOutbox } from './hooks/useOutbox';
+import { useMyReports } from './hooks/useMyReports';
+import { useReportActions } from './hooks/useReportActions';
+import { createClientReportId } from './apis/reportsApi';
+import { SYNC_ERROR_KINDS, SYNC_STATES, canRetryManually } from './domain/syncState';
+import { canDeleteEntry, canEditEntry, entryToDraft } from './domain/myReports';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const { user, login, register, logout, loading, error, response, clearError } = useAuth();
+  const { user, session, login, register, logout, loading, error, response, clearError } = useAuth();
   const { draft, updateDraft, resetDraft } = useReportDraft();
+  const outbox = useOutbox(session);
+  const myReports = useMyReports(session, outbox.items);
+  const reportActions = useReportActions({ session, outbox, myReports });
 
   // El id se genera al entrar al formulario y se conserva entre reintentos, para
   // que un envio repetido no cree dos reportes. Se descarta al terminar.
   const [clientReportId, setClientReportId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  const [confirmation, setConfirmation] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   const handleLogin = async (payload, navigation) => {
     const result = await login(payload);
@@ -62,9 +74,68 @@ export default function App() {
     resetDraft();
     setClientReportId(createClientReportId());
     setSubmitError(null);
-    setConfirmation(null);
+    setEditing(null);
 
     navigation.navigate('ReporteFotoUbicacion');
+  };
+
+  const startEdit = (entry, navigation) => {
+    const source = entry.report || entry.item;
+
+    resetDraft();
+    updateDraft(entryToDraft(entry));
+    setSubmitError(null);
+    setEditing({
+      source: entry.source,
+      reportId: entry.report ? entry.report.id : null,
+      localId: entry.item ? entry.item.localId : null,
+      key: entry.key,
+      clientReportId: source.clientReportId,
+    });
+
+    navigation.navigate('ReporteFotoUbicacion');
+  };
+
+  const leaveEdit = (navigation) => {
+    navigation.navigate('ReporteDetalle', { key: editing.key, clientReportId: editing.clientReportId });
+  };
+
+  const handleSubmitEdit = async (patch, navigation) => {
+    setSubmitting(true);
+    setSubmitError(null);
+
+    const outcome = await reportActions.saveEdit(editing, { ...draft, ...patch });
+
+    setSubmitting(false);
+
+    if (outcome.error) {
+      setSubmitError(outcome.error);
+      return;
+    }
+
+    resetDraft();
+    setEditing(null);
+    navigation.navigate(outcome.route, outcome.params);
+  };
+
+  const confirmDelete = (entry, navigation) => {
+    const message =
+      entry.source === 'server'
+        ? 'Se eliminarán el contenido, la ubicación y la foto del reporte. Esta acción no se puede deshacer.'
+        : 'El reporte se borrará de este teléfono y no se enviará.';
+
+    Alert.alert('Eliminar reporte', message, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () =>
+          reportActions
+            .deleteEntry(entry)
+            .then(() => navigation.navigate('MisReportes'))
+            .catch((error) => Alert.alert('No se pudo eliminar', error.message)),
+      },
+    ]);
   };
 
   const handleSubmitReport = async (patch, navigation) => {
@@ -78,16 +149,22 @@ export default function App() {
     setSubmitError(null);
 
     try {
-      // Sin token: la API acepta el reporte anonimo y `useAuth` todavia no
-      // expone el JWT.
-      const receipt = await submitReport({
-        draft: currentDraft,
-        clientReportId: reportId
-      });
+      const { item, error } = await outbox.enqueue({ draft: currentDraft, clientReportId: reportId });
 
-      setConfirmation(receipt);
+      // El formulario sigue abierto: se corrige ahi y se envia con un UUID nuevo.
+      if (item.state === SYNC_STATES.error && item.errorKind === SYNC_ERROR_KINDS.needsCorrection) {
+        await outbox.remove(item.localId);
+        setClientReportId(createClientReportId());
+        setSubmitError({
+          message: error ? error.message : 'Revisa los datos del reporte.',
+          fields: error ? error.fieldErrors : {},
+        });
+        return;
+      }
+
       resetDraft();
-      navigation.navigate('Inicio');
+      setClientReportId(null);
+      navigation.navigate('EstadoEnvio', { localId: item.localId });
     } catch (error) {
       setSubmitError({ message: error.message, fields: error.fieldErrors });
     } finally {
@@ -136,10 +213,14 @@ export default function App() {
 
                 <InicioScreen
                   {...props}
-                  onStart={() => props.navigation.navigate('Login')}
+                  onStart={() => {
+                    clearError();
+                    props.navigation.navigate('Login');
+                  }}
                   onAnonymous={() => props.navigation.navigate('Protocolo')}
                   onPublicInfo={() => props.navigation.navigate('InfoPublica')}
                   onReport={() => enterReportFlow(props.navigation)}
+                  onMyReports={() => props.navigation.navigate('MisReportes')}
                 />
               </>
             )}
@@ -151,7 +232,11 @@ export default function App() {
                 draft={draft}
                 onChange={updateDraft}
                 onNext={() => props.navigation.navigate('ReporteDetalles')}
-                onBack={() => props.navigation.navigate('Inicio')}
+                onBack={() =>
+                  editing ? leaveEdit(props.navigation) : props.navigation.navigate('Inicio')
+                }
+                title={editing ? 'Editar reporte' : undefined}
+                photoLocked={Boolean(editing && editing.source === 'server')}
               />
             )}
           </Stack.Screen>
@@ -161,20 +246,107 @@ export default function App() {
               <ReporteScreen
                 draft={draft}
                 onChange={updateDraft}
-                onSubmit={(patch) => handleSubmitReport(patch, props.navigation)}
+                onSubmit={(patch) =>
+                  editing
+                    ? handleSubmitEdit(patch, props.navigation)
+                    : handleSubmitReport(patch, props.navigation)
+                }
                 onBack={() => props.navigation.navigate('ReporteFotoUbicacion')}
                 submitError={submitError}
                 submitting={submitting}
+                title={editing ? 'Editar reporte' : undefined}
+                submitLabel={editing ? 'Guardar cambios' : undefined}
+                askConsent={!editing}
               />
             )}
+          </Stack.Screen>
+
+          <Stack.Screen name="EstadoEnvio">
+            {(props) => {
+              const localId = props.route.params ? props.route.params.localId : null;
+
+              return (
+                <SinConexionScreen
+                  item={outbox.items.find((item) => item.localId === localId) || null}
+                  syncing={outbox.syncing}
+                  onRetry={() => outbox.retry(localId).catch(() => null)}
+                  onViewReports={() => props.navigation.navigate('MisReportes')}
+                  onDone={() => props.navigation.navigate('Inicio')}
+                />
+              );
+            }}
+          </Stack.Screen>
+
+          <Stack.Screen name="MisReportes">
+            {(props) => (
+              <MisReportesScreen
+                entries={myReports.entries}
+                signedIn={Boolean(session)}
+                loading={myReports.loading}
+                loadingMore={myReports.loadingMore}
+                error={myReports.error}
+                hasMore={myReports.hasMore}
+                onRefresh={() => {
+                  myReports.refresh();
+                  outbox.sync().catch(() => null);
+                }}
+                onLoadMore={myReports.loadMore}
+                onOpen={(entry) =>
+                  props.navigation.navigate('ReporteDetalle', {
+                    key: entry.key,
+                    clientReportId: (entry.report || entry.item).clientReportId,
+                  })
+                }
+                onBack={() => props.navigation.navigate('Inicio')}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ReporteDetalle">
+            {(props) => {
+              const { key, clientReportId } = props.route.params || {};
+              // Al sincronizarse, un reporte de la cola reaparece como reporte del servidor.
+              const entry =
+                myReports.entries.find((candidate) => candidate.key === key) ||
+                myReports.entries.find(
+                  (candidate) => (candidate.report || candidate.item).clientReportId === clientReportId
+                ) ||
+                null;
+              const item = entry ? entry.item : null;
+
+              return (
+                <ReporteDetalleScreen
+                  entry={entry}
+                  busy={outbox.syncing}
+                  onBack={() => props.navigation.navigate('MisReportes')}
+                  onRetry={
+                    item && canRetryManually(item)
+                      ? () => outbox.retry(item.localId).catch(() => null)
+                      : undefined
+                  }
+                  onEdit={
+                    entry && canEditEntry(entry) ? () => startEdit(entry, props.navigation) : undefined
+                  }
+                  onDelete={
+                    entry && canDeleteEntry(entry)
+                      ? () => confirmDelete(entry, props.navigation)
+                      : undefined
+                  }
+                />
+              );
+            }}
           </Stack.Screen>
 
           <Stack.Screen name="Login">
             {(props) => (
               <IniciarSesionScreen
                 onBack={() => props.navigation.navigate('Inicio')}
-                onCreateAccount={() => props.navigation.navigate('CrearCuenta')}
+                onCreateAccount={() => {
+                  clearError();
+                  props.navigation.navigate('CrearCuenta');
+                }}
                 onLogin={(payload) => handleLogin(payload, props.navigation)}
+                error={error}
               />
             )}
           </Stack.Screen>
@@ -182,8 +354,12 @@ export default function App() {
           <Stack.Screen name="CrearCuenta">
             {(props) => (
               <CrearCuentaScreen
-                onBack={() => props.navigation.navigate('Login')}
+                onBack={() => {
+                  clearError();
+                  props.navigation.navigate('Login');
+                }}
                 onCreate={(payload) => handleRegister(payload, props.navigation)}
+                error={error}
               />
             )}
           </Stack.Screen>

@@ -1,8 +1,16 @@
 openapi: 3.1.0
 info:
   title: DogAlert API
-  version: 1.1.0
-  description: Contrato REST del MVP DogAlert. Los esquemas públicos nunca incluyen PII ni coordenadas exactas.
+  version: 1.2.0
+  description: |
+    Contrato REST del MVP DogAlert. Los esquemas públicos nunca incluyen PII ni
+    coordenadas exactas.
+
+    Desviación consciente de la 08:35: el SDD preveía guardar `Fuera_Creel` y
+    seguir aceptando el reporte. Este contrato no tiene ese campo porque el equipo
+    decidió rechazar con `422 LOCATION_OUTSIDE_CREEL` todo reporte fuera del
+    polígono. Como consecuencia, ningún reporte almacenado puede estar fuera de
+    Creel y el filtro `externalToCreel` se retiró: siempre habría cero filas.
 servers:
   - url: https://api.example.invalid/v1
     description: Sustituir por el dominio del entorno
@@ -143,7 +151,17 @@ paths:
     post:
       tags: [Reports]
       operationId: createReport
-      description: Acepta un JWT propio opcional; sin JWT crea reporte anónimo. La ubicación se valida contra el polígono versionado de Creel y no se devuelve en el recibo.
+      description: |
+        Acepta un JWT propio opcional; sin JWT crea reporte anónimo. La ubicación se
+        valida contra el polígono versionado de Creel y no se devuelve en el recibo.
+
+        El punto debe caer dentro del polígono activo: fuera de él la respuesta es
+        `422 LOCATION_OUTSIDE_CREEL` y no se guarda nada. La geometría vigente sale de
+        `poligonos_creel` y, mientras no haya geometría oficial cargada, del polígono
+        de respaldo de configuración.
+
+        Sin evidencia se puede enviar `application/json` con el mismo cuerpo de
+        `ReportCreate`; con evidencia, `multipart/form-data` según se declara abajo.
       security:
         - {}
         - BearerJwt: []
@@ -152,6 +170,8 @@ paths:
       requestBody:
         required: true
         content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportCreate" }
           multipart/form-data:
             schema:
               type: object
@@ -175,7 +195,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportReceipt" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "410": { $ref: "#/components/responses/Gone" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
 
@@ -236,12 +259,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Profile" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/ValidationError" }
 
   /me/reports:
     get:
       tags: [Reports]
       operationId: listMyReports
+      description: |
+        Reportes propios del autor, del más reciente al más antiguo, en páginas de 20.
+        `nextCursor` es opaco y viene en `null` en la última página. No acepta filtros:
+        el autor ya está fijado por la identidad del token.
       security: [{ BearerJwt: [] }]
       parameters:
         - { $ref: "#/components/parameters/Cursor" }
@@ -258,6 +286,8 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/OwnedReport" }
                   nextCursor: { type: [string, "null"] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 
   /me/reports/{reportId}:
     parameters:
@@ -265,17 +295,30 @@ paths:
     get:
       tags: [Reports]
       operationId: getMyReport
+      description: |
+        Un reporte ajeno y uno inexistente responden el mismo `404`, con el código
+        `REPORT_NOT_FOUND`. Confirmar la existencia de un reporte ajeno permitiría
+        enumerar los de otros autores, así que el servicio no distingue ambos casos.
       security: [{ BearerJwt: [] }]
       responses:
         "200":
-          description: Detalle propio
+          description: Detalle propio, con la coordenada exacta
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OwnedReport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
     patch:
       tags: [Reports]
       operationId: updateMyReport
+      description: |
+        Edita un reporte propio y lo devuelve a `PENDING`. Solo se puede editar en
+        `PENDING` o `VERIFIED`; en cualquier otro estado responde
+        `409 REPORT_NOT_EDITABLE`.
+
+        La ubicación se vuelve a validar contra el polígono: si el nuevo punto queda
+        fuera de Creel responde `422 LOCATION_OUTSIDE_CREEL` y el reporte queda
+        intacto, sin cambios.
       security: [{ BearerJwt: [] }]
       requestBody:
         required: true
@@ -288,14 +331,20 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OwnedReport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
     delete:
       tags: [Reports]
       operationId: deleteMyReport
+      description: |
+        Borra el reporte y su evidencia. Un reintento del `POST` original con la misma
+        llave de idempotencia responde `410 REPORT_DELETED` en lugar de recrearlo.
       security: [{ BearerJwt: [] }]
       responses:
         "204": { description: Contenido, ubicación y foto eliminados }
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /admin/reports:
@@ -311,9 +360,6 @@ paths:
         - name: status
           in: query
           schema: { $ref: "#/components/schemas/ReportStatus" }
-        - name: externalToCreel
-          in: query
-          schema: { type: boolean }
         - { $ref: "#/components/parameters/Cursor" }
       responses:
         "200":
@@ -328,6 +374,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AdminReport" }
                   nextCursor: { type: [string, "null"] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /admin/reports/{reportId}:
@@ -343,6 +390,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminReport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
@@ -364,6 +412,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminReport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
 
@@ -382,6 +433,9 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MatchCandidate" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /admin/reports/{reportId}/relationships:
     post:
@@ -405,6 +459,9 @@ paths:
                 reason: { type: string, minLength: 3, maxLength: 2000 }
       responses:
         "201": { description: Relación creada y auditada }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
   /admin/metrics:
@@ -419,10 +476,12 @@ paths:
         - { $ref: "#/components/parameters/Severity" }
       responses:
         "200":
-          description: Métricas sobre verificados; oficiales excluyen externos
+          description: Métricas sobre verificados; todas las cifras son internas a Creel
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Metrics" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /admin/exports:
     post:
@@ -440,6 +499,7 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /admin/audit:
@@ -464,6 +524,8 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AuditEvent" }
                   nextCursor: { type: [string, "null"] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
 components:
   securitySchemes:
@@ -595,17 +657,32 @@ components:
         collar: { $ref: "#/components/schemas/CollarPresence" }
         description: { type: string, minLength: 20, maxLength: 2000 }
         location: { $ref: "#/components/schemas/Coordinate" }
-    ReportReceipt:
+    ReportIdentity:
       type: object
-      required: [id, clientReportId, status, replayed]
+      description: |
+        Identidad mínima común de un reporte. Deliberadamente no declara
+        `replayed`: ese campo solo significa algo en el alta, donde `true`
+        distingue un reintento idempotente. En una lectura o una edición no
+        aplicaba, y el `allOf` anterior lo arrastraba a todas.
+      required: [id, clientReportId, status]
       properties:
         id: { type: integer, minimum: 1 }
         clientReportId: { type: string, format: uuid }
         status: { $ref: "#/components/schemas/ReportStatus" }
-        replayed: { type: boolean }
+    ReportReceipt:
+      allOf:
+        - $ref: "#/components/schemas/ReportIdentity"
+        - type: object
+          required: [replayed]
+          properties:
+            replayed:
+              type: boolean
+              description: |
+                `true` solo si la respuesta es el reintento de un alta ya
+                existente. En la primera llamada es `false`.
     PublicReport:
       type: object
-      required: [publicId, eventAt, eventType, severity, dogCount, approximateLocation, externalToCreel]
+      required: [publicId, eventAt, eventType, severity, dogCount, approximateLocation]
       properties:
         publicId: { type: integer, minimum: 1 }
         eventAt: { type: string, format: date-time }
@@ -616,7 +693,6 @@ components:
         color: { type: [string, "null"] }
         collar: { $ref: "#/components/schemas/CollarPresence" }
         approximateLocation: { $ref: "#/components/schemas/PublicCoordinate" }
-        externalToCreel: { type: boolean }
     PublicCoordinate:
       type: object
       required: [latitude, longitude]
@@ -626,7 +702,7 @@ components:
         longitude: { type: number, minimum: -180, maximum: 180 }
     OwnedReport:
       allOf:
-        - $ref: "#/components/schemas/ReportReceipt"
+        - $ref: "#/components/schemas/ReportIdentity"
         - type: object
           required: [eventAt, eventType, severity, certainty, dogCount, size, collar, description, exactLocation]
           properties:
@@ -648,7 +724,6 @@ components:
             reporterMode: { type: string, enum: [ANONYMOUS, REGISTERED] }
             contactAllowed: { type: boolean }
             contactPhone: { type: [string, "null"] }
-            externalToCreel: { type: boolean }
             matchCount: { type: integer, minimum: 0 }
     SafetyProtocol:
       type: object
@@ -664,16 +739,21 @@ components:
       properties:
         center: { $ref: "#/components/schemas/PublicCoordinate" }
         count: { type: integer, minimum: 1 }
-        externalToCreel: { type: boolean }
     Profile:
       type: object
       required: [id, role, contactConsent, status]
       properties:
         id: { type: integer, minimum: 1 }
-        role: { type: string, enum: [USER, ADMIN] }
+        role: { type: string, enum: [USUARIO, ADMIN] }
         contactConsent: { type: boolean }
         phone: { type: [string, "null"] }
-        status: { type: string, enum: [ACTIVE, ANONYMIZED, DISABLED] }
+        status:
+          type: string
+          enum: [ACTIVA, ANONIMIZADA, BLOQUEADA]
+          description: |
+            Los valores siguen la nomenclatura de `Usuarios.Estado_Cuenta`, no una
+            traducción al inglés. `ANONIMIZADA` la alcanza la retención: la fila y
+            sus reportes se conservan, pero sin datos personales.
     ModerationRequest:
       type: object
       required: [toStatus, reason, checklist]
@@ -729,12 +809,17 @@ components:
           type: object
           required: [code, message, requestId]
           properties:
-            code: { type: string }
+            code:
+              type: string
+              description: |
+                Código estable para programar el cliente. El texto de `message` es
+                para personas y puede cambiar sin romper a nadie.
             message: { type: string }
             requestId: { type: string, format: uuid }
             details:
               type: array
               items: { type: object, additionalProperties: true }
+        timestamp: { type: string, format: date-time }
 
   responses:
     BadRequest:
@@ -763,7 +848,23 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     ValidationError:
-      description: Validación de dominio fallida
+      description: |
+        Validación de dominio fallida. `error.code` distingue los casos:
+        `VALIDATION_ERROR` y `INVALID_REPORT` para los campos, `INVALID_PHOTO`
+        para la evidencia y `LOCATION_OUTSIDE_CREEL` cuando el punto cae fuera del
+        polígono.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Gone:
+      description: |
+        El reporte ya no existe porque su autor lo borró, pero la llave de
+        idempotencia sigue reservada. `error.code` es `REPORT_DELETED`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    PayloadTooLarge:
+      description: La evidencia supera el tamaño máximo permitido
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }

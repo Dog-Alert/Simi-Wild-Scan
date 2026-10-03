@@ -89,4 +89,10 @@ describe('IniciarSesionScreen', () => {
     expect(tab).toHaveStyle({ height: 34 });
     expect(tab.props.hitSlop).toBeTruthy();
   });
+
+  it('muestra el error de la cuenta', () => {
+    const { getByText } = render(<IniciarSesionScreen onBack={jest.fn()} onLogin={jest.fn()} error="Las contraseñas no coinciden." />);
+
+    expect(getByText('Las contraseñas no coinciden.')).toBeTruthy();
+  });
 });

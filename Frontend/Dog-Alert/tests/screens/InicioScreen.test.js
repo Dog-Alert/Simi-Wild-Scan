@@ -34,4 +34,13 @@ describe('InicioScreen', () => {
 
     expect(onAnonymous).toHaveBeenCalledTimes(1);
   });
+
+  it('abre mis reportes cuando se recibe onMyReports', () => {
+    const onMyReports = jest.fn();
+    const { getByText } = render(<InicioScreen onMyReports={onMyReports} />);
+
+    fireEvent.press(getByText('Mis reportes'));
+
+    expect(onMyReports).toHaveBeenCalledTimes(1);
+  });
 });

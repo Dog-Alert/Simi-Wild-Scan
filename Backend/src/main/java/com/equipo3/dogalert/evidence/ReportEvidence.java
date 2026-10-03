@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @Entity
-@Table(name = "Evidencias_Reportes")
+@Table(name = "evidencias_reportes")
 public class ReportEvidence {
 
     public static final int MAX_PHOTO_BYTES = 1_048_576;
