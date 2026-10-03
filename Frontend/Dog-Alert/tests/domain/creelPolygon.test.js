@@ -1,6 +1,7 @@
 import {
   CREEL_BOUNDARY,
   CREEL_BOUNDARY_PROVENANCE,
+  CREEL_BOUNDARY_VERSION,
   CREEL_CENTER,
   isPointInCreel,
   isValidCoordinate,
@@ -118,5 +119,11 @@ describe('isValidCoordinate', () => {
   it('rechaza lo que excede los limites', () => {
     expect(isValidCoordinate(90.1, 0)).toBe(false);
     expect(isValidCoordinate(0, 180.1)).toBe(false);
+  });
+});
+
+describe('CREEL_BOUNDARY_VERSION', () => {
+  it('identifica el poligono por su origen en OSM', () => {
+    expect(CREEL_BOUNDARY_VERSION).toBe(`osm-${CREEL_BOUNDARY_PROVENANCE.osmId.replace('/', '-')}`);
   });
 });

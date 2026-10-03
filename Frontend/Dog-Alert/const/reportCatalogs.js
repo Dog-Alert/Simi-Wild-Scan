@@ -32,12 +32,7 @@ export const EVENT_TYPES = [
 
 export const OTHER_EVENT_TYPE = 'OTHER';
 
-/**
- * Gravedad. RF-009 pide registrarla, pero se asigna en la revision del reporte
- * y no la elige quien reporta, asi que el formulario no la pide. El payload la
- * envia en `null` y el backend debe aceptarlo: el contrato de la API hoy la
- * declara obligatoria.
- */
+// Gravedad que estima quien reporta (SDD 5, RF-009); moderacion puede corregirla.
 export const SEVERITIES = [
   {
     value: 'LOW',
@@ -193,6 +188,9 @@ export const REPORT_MIN_EVENT_DATE_LABEL = REPORT_MIN_EVENT_DATE.toLocaleDateStr
 export const OUTSIDE_CREEL_MESSAGE =
   'Esta ubicación está fuera del área de Creel. DogAlert solo registra reportes dentro de Creel, corrige la ubicación para continuar.';
 
+export const CONSENT_LABEL =
+  'Acepto que este reporte se use según el aviso de privacidad de DogAlert.';
+
 export const REPORT_MESSAGES = {
   eventAtRequired: 'Indica la fecha y la hora del evento.',
   eventAtFuture: 'La fecha del evento no puede ser futura.',
@@ -201,6 +199,7 @@ export const REPORT_MESSAGES = {
   eventTypeOtherRequired: 'Describe el tipo de evento.',
   eventTypeOtherTooLong: `El tipo de evento admite máximo ${REPORT_LIMITS.eventTypeOther.maxLength} caracteres.`,
   severityRequired: 'Selecciona la gravedad del evento.',
+  consentRequired: 'Debes aceptar el aviso de privacidad para enviar el reporte.',
   certaintyRequired: 'Selecciona qué tan certeza tienes del reporte.',
   dogCountRequired: 'Indica cuántos perros viste.',
   dogCountInvalid: `La cantidad de perros debe ser un número entre ${REPORT_LIMITS.dogCount.min} y ${REPORT_LIMITS.dogCount.max}.`,

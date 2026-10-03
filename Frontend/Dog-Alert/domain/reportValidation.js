@@ -16,10 +16,12 @@ import {
   REPORT_LIMITS,
   REPORT_MESSAGES,
   REPORT_MIN_EVENT_DATE,
+  SEVERITIES,
 } from '../const/reportCatalogs';
 
 const EVENT_TYPE_VALUES = new Set(EVENT_TYPES.map((option) => option.value));
 const DOG_SIZE_VALUES = new Set(DOG_SIZES.map((option) => option.value));
+const SEVERITY_VALUES = new Set(SEVERITIES.map((option) => option.value));
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -60,6 +62,7 @@ export function createEmptyReportDraft() {
     description: '',
     location: null,
     photo: null,
+    consentAccepted: false,
   };
 }
 
@@ -225,8 +228,9 @@ export function validateReport(draft = {}) {
     errors.eventType = eventTypeError;
   }
 
-  // `severity` no se valida a proposito: la gravedad la asigna quien revisa el
-  // reporte, no quien lo captura. Ver `SEVERITIES` en `reportCatalogs`.
+  if (!SEVERITY_VALUES.has(draft.severity)) {
+    errors.severity = REPORT_MESSAGES.severityRequired;
+  }
 
   if (!draft.certainty) {
     errors.certainty = REPORT_MESSAGES.certaintyRequired;
@@ -265,6 +269,10 @@ export function validateReport(draft = {}) {
     errors.photo = photoError;
   }
 
+  if (draft.consentAccepted !== true) {
+    errors.consentAccepted = REPORT_MESSAGES.consentRequired;
+  }
+
   return errors;
 }
 
@@ -277,10 +285,6 @@ export function isReportValid(draft) {
  * (`SDD/docs/sdd/openapi.yaml:564-580`).
  *
  * La foto viaja como parte aparte del multipart, nunca dentro del payload.
- *
- * `severity` sale en `null` porque la gravedad la asigna quien revisa el reporte
- * y el formulario no la pide. El contrato de la API la declara obligatoria, asi
- * que el backend tiene que aceptar null para que este reporte se pueda enviar.
  */
 export function buildReportPayload(draft, clientReportId) {
   const colorUndetermined = Boolean(draft.colorUndetermined);
@@ -294,7 +298,7 @@ export function buildReportPayload(draft, clientReportId) {
     eventType: draft.eventType,
     eventTypeOther:
       draft.eventType === OTHER_EVENT_TYPE ? normalizeText(draft.eventTypeOther) || null : null,
-    severity: draft.severity || null,
+    severity: draft.severity,
     certainty: draft.certainty,
     dogCount: toFiniteNumber(draft.dogCount),
     size: draft.size,
@@ -311,5 +315,12 @@ export function buildReportPayload(draft, clientReportId) {
           ? null
           : toNonNegativeNumber(location.accuracyMeters),
     },
+    consentAccepted: Boolean(draft.consentAccepted),
   };
+}
+
+// Cuerpo de PATCH /v1/me/reports/{id}: el mismo reporte, sin UUID, foto ni consentimiento.
+export function buildReportUpdatePayload(draft) {
+  const { clientReportId, consentAccepted, ...payload } = buildReportPayload(draft, null);
+  return payload;
 }

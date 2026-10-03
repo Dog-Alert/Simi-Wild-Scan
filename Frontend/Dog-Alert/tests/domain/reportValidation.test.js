@@ -23,6 +23,7 @@ function validDraft() {
     ...createEmptyReportDraft(),
     eventAt: VALID_DATE,
     eventType: 'ATTACK_PET',
+    consentAccepted: true,
     severity: 'HIGH',
     certainty: 'MEDIUM',
     dogCount: '3',
@@ -57,21 +58,27 @@ describe('borrador vacío', () => {
         'certainty',
         'collar',
         'color',
+        'consentAccepted',
         'description',
         'dogCount',
         'eventAt',
         'eventType',
         'location',
+        'severity',
         'size',
       ].sort()
     );
   });
 
-  it('no exige la gravedad porque la asigna quien revisa el reporte', () => {
-    const errors = validateReport(createEmptyReportDraft());
+  it('exige una gravedad del catalogo', () => {
+    expect(validateReport({ ...validDraft(), severity: '' }).severity).toBeTruthy();
+    expect(validateReport({ ...validDraft(), severity: 'EXTREME' }).severity).toBeTruthy();
+    expect(validateReport(validDraft()).severity).toBeUndefined();
+  });
 
-    expect(errors.severity).toBeUndefined();
-    expect(validateReport({ ...validDraft(), severity: '' }).severity).toBeUndefined();
+  it('exige aceptar el consentimiento', () => {
+    expect(validateReport({ ...validDraft(), consentAccepted: false }).consentAccepted).toBeTruthy();
+    expect(validateReport({ ...validDraft(), consentAccepted: 'true' }).consentAccepted).toBeTruthy();
   });
 });
 
@@ -257,6 +264,7 @@ describe('buildReportPayload', () => {
         source: 'GPS',
         accuracyMeters: 12.5,
       },
+      consentAccepted: true,
     });
   });
 

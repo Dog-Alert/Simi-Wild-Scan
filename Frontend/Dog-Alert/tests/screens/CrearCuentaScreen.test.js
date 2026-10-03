@@ -68,4 +68,10 @@ describe('CrearCuentaScreen', () => {
     // 12 px verticales accompany the 15 px button label.
     expect(getByTestId('submit-create-account')).toHaveStyle({ paddingVertical: 12 });
   });
+
+  it('muestra el error de la cuenta', () => {
+    const { getByText } = render(<CrearCuentaScreen onBack={jest.fn()} onCreate={jest.fn()} error="Las contraseñas no coinciden." />);
+
+    expect(getByText('Las contraseñas no coinciden.')).toBeTruthy();
+  });
 });

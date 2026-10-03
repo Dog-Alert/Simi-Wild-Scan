@@ -6,7 +6,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-export default function InicioScreen({ onStart, onAnonymous, onPublicInfo, onReport }) {
+export default function InicioScreen({ onStart, onAnonymous, onPublicInfo, onReport, onMyReports }) {
   return (
     <View style={styles.inicioContainer}>
       <View style={styles.inicioBackground}>
@@ -38,6 +38,12 @@ export default function InicioScreen({ onStart, onAnonymous, onPublicInfo, onRep
             {onReport ? (
               <TouchableOpacity style={styles.anonymousButton} onPress={onReport}>
                 <Text style={styles.anonymousButtonText}>Reportar un incidente</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {onMyReports ? (
+              <TouchableOpacity style={styles.anonymousButton} onPress={onMyReports}>
+                <Text style={styles.anonymousButtonText}>Mis reportes</Text>
               </TouchableOpacity>
             ) : null}
 
