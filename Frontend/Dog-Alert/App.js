@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -24,8 +25,10 @@ import { useAuth } from './hooks/UseAuth';
 import { useReportDraft } from './hooks/UseReportDraft';
 import { useOutbox } from './hooks/useOutbox';
 import { useMyReports } from './hooks/useMyReports';
+import { useReportActions } from './hooks/useReportActions';
 import { createClientReportId } from './apis/reportsApi';
 import { SYNC_ERROR_KINDS, SYNC_STATES, canRetryManually } from './domain/syncState';
+import { canDeleteEntry, canEditEntry, entryToDraft } from './domain/myReports';
 
 const Stack = createNativeStackNavigator();
 
@@ -34,12 +37,14 @@ export default function App() {
   const { draft, updateDraft, resetDraft } = useReportDraft();
   const outbox = useOutbox(session);
   const myReports = useMyReports(session, outbox.items);
+  const reportActions = useReportActions({ session, outbox, myReports });
 
   // El id se genera al entrar al formulario y se conserva entre reintentos, para
   // que un envio repetido no cree dos reportes. Se descarta al terminar.
   const [clientReportId, setClientReportId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   const handleLogin = async (payload, navigation) => {
     const result = await login(payload);
@@ -69,8 +74,68 @@ export default function App() {
     resetDraft();
     setClientReportId(createClientReportId());
     setSubmitError(null);
+    setEditing(null);
 
     navigation.navigate('ReporteFotoUbicacion');
+  };
+
+  const startEdit = (entry, navigation) => {
+    const source = entry.report || entry.item;
+
+    resetDraft();
+    updateDraft(entryToDraft(entry));
+    setSubmitError(null);
+    setEditing({
+      source: entry.source,
+      reportId: entry.report ? entry.report.id : null,
+      localId: entry.item ? entry.item.localId : null,
+      key: entry.key,
+      clientReportId: source.clientReportId,
+    });
+
+    navigation.navigate('ReporteFotoUbicacion');
+  };
+
+  const leaveEdit = (navigation) => {
+    navigation.navigate('ReporteDetalle', { key: editing.key, clientReportId: editing.clientReportId });
+  };
+
+  const handleSubmitEdit = async (patch, navigation) => {
+    setSubmitting(true);
+    setSubmitError(null);
+
+    const outcome = await reportActions.saveEdit(editing, { ...draft, ...patch });
+
+    setSubmitting(false);
+
+    if (outcome.error) {
+      setSubmitError(outcome.error);
+      return;
+    }
+
+    resetDraft();
+    setEditing(null);
+    navigation.navigate(outcome.route, outcome.params);
+  };
+
+  const confirmDelete = (entry, navigation) => {
+    const message =
+      entry.source === 'server'
+        ? 'Se eliminarán el contenido, la ubicación y la foto del reporte. Esta acción no se puede deshacer.'
+        : 'El reporte se borrará de este teléfono y no se enviará.';
+
+    Alert.alert('Eliminar reporte', message, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () =>
+          reportActions
+            .deleteEntry(entry)
+            .then(() => navigation.navigate('MisReportes'))
+            .catch((error) => Alert.alert('No se pudo eliminar', error.message)),
+      },
+    ]);
   };
 
   const handleSubmitReport = async (patch, navigation) => {
@@ -164,7 +229,11 @@ export default function App() {
                 draft={draft}
                 onChange={updateDraft}
                 onNext={() => props.navigation.navigate('ReporteDetalles')}
-                onBack={() => props.navigation.navigate('Inicio')}
+                onBack={() =>
+                  editing ? leaveEdit(props.navigation) : props.navigation.navigate('Inicio')
+                }
+                title={editing ? 'Editar reporte' : undefined}
+                photoLocked={Boolean(editing && editing.source === 'server')}
               />
             )}
           </Stack.Screen>
@@ -174,10 +243,16 @@ export default function App() {
               <ReporteScreen
                 draft={draft}
                 onChange={updateDraft}
-                onSubmit={(patch) => handleSubmitReport(patch, props.navigation)}
+                onSubmit={(patch) =>
+                  editing
+                    ? handleSubmitEdit(patch, props.navigation)
+                    : handleSubmitReport(patch, props.navigation)
+                }
                 onBack={() => props.navigation.navigate('ReporteFotoUbicacion')}
                 submitError={submitError}
                 submitting={submitting}
+                title={editing ? 'Editar reporte' : undefined}
+                submitLabel={editing ? 'Guardar cambios' : undefined}
               />
             )}
           </Stack.Screen>
@@ -243,6 +318,14 @@ export default function App() {
                   onRetry={
                     item && canRetryManually(item)
                       ? () => outbox.retry(item.localId).catch(() => null)
+                      : undefined
+                  }
+                  onEdit={
+                    entry && canEditEntry(entry) ? () => startEdit(entry, props.navigation) : undefined
+                  }
+                  onDelete={
+                    entry && canDeleteEntry(entry)
+                      ? () => confirmDelete(entry, props.navigation)
                       : undefined
                   }
                 />
