@@ -17,22 +17,25 @@ import ProtocoloDeSeguridad from './screens/ProtocoloDeSeguridad';
 import PublicInfoScreen from './screens/PublicInfoScreen';
 import FotoYUbiScreen from './screens/FotoYUbiScreen';
 import ReporteScreen from './screens/ReporteScreen';
+import SinConexionScreen from './screens/SinConexionScreen';
 import { useAuth } from './hooks/UseAuth';
 import { useReportDraft } from './hooks/UseReportDraft';
-import { createClientReportId, submitReport } from './apis/reportsApi';
+import { useOutbox } from './hooks/useOutbox';
+import { createClientReportId } from './apis/reportsApi';
+import { SYNC_ERROR_KINDS, SYNC_STATES } from './domain/syncState';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const { user, session, login, register, logout, loading, error, response, clearError } = useAuth();
   const { draft, updateDraft, resetDraft } = useReportDraft();
+  const outbox = useOutbox(session);
 
   // El id se genera al entrar al formulario y se conserva entre reintentos, para
   // que un envio repetido no cree dos reportes. Se descarta al terminar.
   const [clientReportId, setClientReportId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  const [confirmation, setConfirmation] = useState(null);
 
   const handleLogin = async (payload, navigation) => {
     const result = await login(payload);
@@ -62,7 +65,6 @@ export default function App() {
     resetDraft();
     setClientReportId(createClientReportId());
     setSubmitError(null);
-    setConfirmation(null);
 
     navigation.navigate('ReporteFotoUbicacion');
   };
@@ -78,15 +80,22 @@ export default function App() {
     setSubmitError(null);
 
     try {
-      const receipt = await submitReport({
-        draft: currentDraft,
-        clientReportId: reportId,
-        token: session ? session.token : undefined,
-      });
+      const { item, error } = await outbox.enqueue({ draft: currentDraft, clientReportId: reportId });
 
-      setConfirmation(receipt);
+      // El formulario sigue abierto: se corrige ahi y se envia con un UUID nuevo.
+      if (item.state === SYNC_STATES.error && item.errorKind === SYNC_ERROR_KINDS.needsCorrection) {
+        await outbox.remove(item.localId);
+        setClientReportId(createClientReportId());
+        setSubmitError({
+          message: error ? error.message : 'Revisa los datos del reporte.',
+          fields: error ? error.fieldErrors : {},
+        });
+        return;
+      }
+
       resetDraft();
-      navigation.navigate('Inicio');
+      setClientReportId(null);
+      navigation.navigate('EstadoEnvio', { localId: item.localId });
     } catch (error) {
       setSubmitError({ message: error.message, fields: error.fieldErrors });
     } finally {
@@ -166,6 +175,21 @@ export default function App() {
                 submitting={submitting}
               />
             )}
+          </Stack.Screen>
+
+          <Stack.Screen name="EstadoEnvio">
+            {(props) => {
+              const localId = props.route.params ? props.route.params.localId : null;
+
+              return (
+                <SinConexionScreen
+                  item={outbox.items.find((item) => item.localId === localId) || null}
+                  syncing={outbox.syncing}
+                  onRetry={() => outbox.retry(localId).catch(() => null)}
+                  onDone={() => props.navigation.navigate('Inicio')}
+                />
+              );
+            }}
           </Stack.Screen>
 
           <Stack.Screen name="Login">
