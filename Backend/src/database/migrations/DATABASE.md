@@ -49,3 +49,7 @@ Una vez que un archivo (ej. `V1.0...sql`) se ha fusionado a la rama `main` y apl
 ---
 
 > **Nota:** Asegúrate siempre de probar tus scripts `V` y `U` en tu entorno local (aplicando y revirtiendo) antes de solicitar una revisión de código. No subas credenciales, IPs públicas ni información sensible en estos scripts.
+
+La migración DOG-37 es `V1.3__persistencia_offline_idempotencia_retencion.sql`;
+su alcance y pasos de verificación están en `V1.3_README.md`. En entornos
+compartidos no se debe ejecutar el script de reversión.

@@ -39,7 +39,9 @@
           "cameraPermission": "DogAlert usa la cámara solo cuando tomas la foto de un reporte. No te acerques al animal para fotografiarlo.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-secure-store"
     ]
   }
 }
