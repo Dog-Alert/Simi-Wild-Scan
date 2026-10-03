@@ -15,6 +15,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
@@ -31,8 +32,25 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Reporte de un avistamiento, anónimo o asociado a una cuenta.
+ *
+ * <p>{@code idx_reportes_usuario_fecha} cubre el filtro por propietario y el
+ * orden {@code (Fecha_Evento, ID_Reporte)} de los reportes propios, que pagina
+ * por cursor opaco. Va declarado aquí, y no solo en
+ * {@code V1.4__sincronizacion_idempotencia_reportes_propios.sql}, porque en este
+ * repositorio las migraciones no se ejecutan automáticamente: un índice escrito
+ * solo en SQL no llegaría a crearse nunca. La migración debe usar
+ * <strong>exactamente</strong> este nombre y estas tres columnas, o quedarían
+ * dos índices idénticos. {@code ReportIndexSchemaTests} lee los metadatos y
+ * falla si falta, para que esto no vuelva a pasar en silencio.
+ */
 @Entity
-@Table(name = "Reportes")
+@Table(
+        name = "Reportes",
+        indexes = @Index(
+                name = "idx_reportes_usuario_fecha",
+                columnList = "ID_Usuario, Fecha_Evento, ID_Reporte"))
 public class Report {
 
     @Id
