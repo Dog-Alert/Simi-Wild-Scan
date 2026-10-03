@@ -15,7 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class MultipartJsonPartConverter extends AbstractJackson2HttpMessageConverter {
 
     public MultipartJsonPartConverter(ObjectMapper objectMapper) {
-        super(objectMapper, MediaType.APPLICATION_OCTET_STREAM);
+        super(objectMapper, MediaType.APPLICATION_OCTET_STREAM, MediaType.TEXT_PLAIN);
     }
 
     @Override
