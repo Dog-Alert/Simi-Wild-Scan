@@ -96,7 +96,7 @@ export function createOutboxService({
   }
 
   async function drain({ token = null, userId = null }) {
-    const result = { synced: [], failed: [] };
+    const result = { synced: [], failed: [], errors: {} };
     const attempted = new Set();
 
     for (;;) {
@@ -127,6 +127,7 @@ export function createOutboxService({
           markSyncFailed(item, failure, now(), { random })
         );
         result.failed.push(failed);
+        result.errors[claimed.localId] = error;
 
         if (failure.isNetworkError) {
           break;
@@ -177,4 +178,14 @@ export function createOutboxService({
     remove,
     list: () => repository.list(),
   };
+}
+
+let defaultService = null;
+
+export function getOutboxService() {
+  if (!defaultService) {
+    defaultService = createOutboxService();
+  }
+
+  return defaultService;
 }

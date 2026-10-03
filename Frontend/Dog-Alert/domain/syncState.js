@@ -208,16 +208,24 @@ export function canSyncWithSession(item, currentUserId) {
   return item.ownerId === null || item.ownerId === undefined || item.ownerId === currentUserId;
 }
 
-export function isDueForSync(item, now, currentUserId = null) {
-  if (!canSyncWithSession(item, currentUserId)) {
-    return false;
-  }
-
+function isWaitingForSync(item, currentUserId) {
   const isWaiting =
     item.state === SYNC_STATES.pending ||
     (item.state === SYNC_STATES.error && item.errorKind === SYNC_ERROR_KINDS.retryable);
 
-  return isWaiting && item.nextAttemptAt !== null && item.nextAttemptAt <= now;
+  return isWaiting && item.nextAttemptAt !== null && canSyncWithSession(item, currentUserId);
+}
+
+export function isDueForSync(item, now, currentUserId = null) {
+  return isWaitingForSync(item, currentUserId) && item.nextAttemptAt <= now;
+}
+
+export function nextWakeAt(items, currentUserId = null) {
+  const times = items
+    .filter((item) => isWaitingForSync(item, currentUserId))
+    .map((item) => item.nextAttemptAt);
+
+  return times.length ? Math.min(...times) : null;
 }
 
 export function selectNextDue(items, now, currentUserId = null) {

@@ -236,6 +236,7 @@ describe('syncPending', () => {
       errorKind: SYNC_ERROR_KINDS.needsCorrection,
     });
     expect(submit).toHaveBeenCalledTimes(1);
+    expect(result.errors[UUID_A].status).toBe(422);
   });
 
   it('vuelve a validar Creel antes de enviar', async () => {

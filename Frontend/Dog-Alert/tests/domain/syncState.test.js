@@ -19,6 +19,7 @@ import {
   markReadyToSync,
   markSyncFailed,
   markSynced,
+  nextWakeAt,
   recoverExpiredLease,
   requiresNewClientReportId,
   retryNow,
@@ -354,6 +355,23 @@ describe('isDueForSync y selectNextDue', () => {
   it('devuelve null si no hay nada vencido', () => {
     expect(selectNextDue([queued()], NOW)).toBeNull();
     expect(selectNextDue([], NOW)).toBeNull();
+  });
+});
+
+describe('nextWakeAt', () => {
+  it('devuelve el intento programado mas cercano', () => {
+    const soon = { ...markReadyToSync(queued(), NOW), nextAttemptAt: NOW + 5000 };
+    const later = { ...markReadyToSync(queued({ localId: 'b' }), NOW), nextAttemptAt: NOW + 9000 };
+
+    expect(nextWakeAt([later, soon])).toBe(NOW + 5000);
+  });
+
+  it('ignora lo que no se reintenta solo o es de otra cuenta', () => {
+    const correction = markSyncFailed(syncing(), { status: 422 }, NOW);
+    const foreign = markReadyToSync(queued({ ownerId: '7' }), NOW);
+
+    expect(nextWakeAt([queued(), correction, foreign])).toBeNull();
+    expect(nextWakeAt([foreign], '7')).toBe(NOW);
   });
 });
 
