@@ -7,6 +7,18 @@ const ERROR_DETAILS = {
   [SYNC_ERROR_KINDS.manual]: 'No se pudo enviar. Inténtalo de nuevo más tarde.',
 };
 
+const SERVER_STATUSES = {
+  PENDING: { tone: 'pending', label: 'Pendiente' },
+  VERIFIED: { tone: 'verified', label: 'Verificado' },
+  REJECTED: { tone: 'rejected', label: 'Rechazado' },
+  DUPLICATE: { tone: 'rejected', label: 'Duplicado' },
+  ARCHIVED: { tone: 'archived', label: 'Archivado' },
+};
+
+export function getServerStatus(status) {
+  return SERVER_STATUSES[status] || { tone: 'pending', label: status || 'Desconocido' };
+}
+
 export function getSyncStatus(item) {
   switch (item.state) {
     case SYNC_STATES.localSaved:
