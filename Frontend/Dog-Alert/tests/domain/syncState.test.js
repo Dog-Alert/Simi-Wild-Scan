@@ -71,6 +71,10 @@ describe('createQueuedReport', () => {
     expect(item.createdAt).toBe(NOW);
   });
 
+  it('usa el clientReportId como localId si no se indica otro', () => {
+    expect(queued().localId).toBe(UUID);
+  });
+
   it('guarda un resumen sin ubicacion ni descripcion', () => {
     const item = queued();
 
@@ -405,6 +409,7 @@ describe('edicion de reportes en la cola', () => {
     const item = applyQueuedEdit(rejected, { ...changes, clientReportId: OTHER_UUID }, NOW);
 
     expect(item.clientReportId).toBe(OTHER_UUID);
+    expect(item.localId).toBe(UUID);
     expect(item.attempts).toBe(0);
     expect(item.errorKind).toBeNull();
     expect(item.lastErrorCode).toBeNull();

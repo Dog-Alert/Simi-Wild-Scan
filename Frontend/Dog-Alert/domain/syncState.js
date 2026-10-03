@@ -50,12 +50,20 @@ function buildSummary(draft) {
   };
 }
 
-export function createQueuedReport({ clientReportId, draft, ownerId = null, polygonVersion, now }) {
+export function createQueuedReport({
+  clientReportId,
+  localId = clientReportId,
+  draft,
+  ownerId = null,
+  polygonVersion,
+  now,
+}) {
   if (!clientReportId) {
     throw new Error('El reporte de la cola necesita un clientReportId.');
   }
 
   return {
+    localId,
     clientReportId,
     state: SYNC_STATES.localSaved,
     errorKind: null,
