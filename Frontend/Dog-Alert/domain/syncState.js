@@ -101,6 +101,11 @@ export function startSyncAttempt(item, now) {
   );
 }
 
+export function claimForSync(item, now) {
+  const ready = item.state === SYNC_STATES.error ? markReadyToSync(item, now) : item;
+  return startSyncAttempt(ready, now);
+}
+
 export function markSynced(item, receipt, now) {
   return transition(
     item,

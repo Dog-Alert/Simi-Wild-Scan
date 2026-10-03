@@ -10,6 +10,7 @@ import {
   canRetryManually,
   canSyncWithSession,
   canTransition,
+  claimForSync,
   classifySyncFailure,
   computeRetryDelayMs,
   createQueuedReport,
@@ -145,6 +146,21 @@ describe('envio', () => {
     expect(item.syncedAt).toBe(NOW + 500);
     expect(item.clientReportId).toBe(UUID);
     expect(item.summary.eventType).toBe('ATTACK_PET');
+  });
+});
+
+describe('claimForSync', () => {
+  it('toma un pendiente', () => {
+    expect(claimForSync(markReadyToSync(queued(), NOW), NOW).state).toBe(SYNC_STATES.syncing);
+  });
+
+  it('toma un error reintentable pasando por pendiente', () => {
+    const failed = markSyncFailed(syncing(), { status: 503 }, NOW);
+    const item = claimForSync(failed, NOW);
+
+    expect(item.state).toBe(SYNC_STATES.syncing);
+    expect(item.attempts).toBe(2);
+    expect(item.errorKind).toBeNull();
   });
 });
 
