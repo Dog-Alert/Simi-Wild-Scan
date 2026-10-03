@@ -7,7 +7,7 @@ import {
 } from '../const/reportCatalogs';
 import { getServerStatus, getSyncStatus } from '../const/syncLabels';
 import { createEmptyReportDraft } from './reportValidation';
-import { SYNC_STATES } from './syncState';
+import { SYNC_STATES, canDeleteQueuedReport, canEditQueuedReport } from './syncState';
 
 const labelsOf = (options) => Object.fromEntries(options.map((option) => [option.value, option.label]));
 
@@ -105,4 +105,26 @@ export function reportToDraft(report) {
         }
       : null,
   };
+}
+
+// En el servidor la regla la decide el backend (409 si ya no se puede editar).
+export function canEditEntry(entry) {
+  return entry.source === 'server' || canEditQueuedReport(entry.item);
+}
+
+// Un anonimo ya enviado no tiene autor en el servidor: no se puede borrar desde la app.
+export function canDeleteEntry(entry) {
+  return (
+    entry.source === 'server' ||
+    (entry.item.state !== SYNC_STATES.synced && canDeleteQueuedReport(entry.item))
+  );
+}
+
+export function entryToDraft(entry) {
+  if (entry.source === 'server') {
+    return reportToDraft(entry.report);
+  }
+
+  const { draft } = entry.item;
+  return { ...draft, eventAt: draft.eventAt ? new Date(draft.eventAt) : null };
 }

@@ -1,5 +1,8 @@
 import {
   buildMyReportEntries,
+  canDeleteEntry,
+  canEditEntry,
+  entryToDraft,
   eventTypeLabel,
   reportToDraft,
   toReportDetail,
@@ -206,5 +209,35 @@ describe('reportToDraft', () => {
       color: 'Negro',
       location: { latitude: 27.75, longitude: -107.63 },
     });
+  });
+});
+
+describe('acciones sobre un reporte', () => {
+  const [server] = buildMyReportEntries({ serverReports: [serverReport(1)] });
+  const local = (overrides) => buildMyReportEntries({ queueItems: [queueItem('a', overrides)] })[0];
+
+  it('los reportes del servidor se pueden editar y borrar', () => {
+    expect(canEditEntry(server)).toBe(true);
+    expect(canDeleteEntry(server)).toBe(true);
+  });
+
+  it('en la cola sigue las reglas de syncState', () => {
+    expect(canEditEntry(local({ attempts: 0 }))).toBe(true);
+    expect(canEditEntry(local({ attempts: 1 }))).toBe(false);
+    expect(canDeleteEntry(local({ state: SYNC_STATES.syncing }))).toBe(false);
+    expect(canDeleteEntry(local({ attempts: 1 }))).toBe(true);
+  });
+
+  it('un anonimo ya enviado no se edita ni se borra', () => {
+    const synced = local({ state: SYNC_STATES.synced, draft: null });
+
+    expect(canEditEntry(synced)).toBe(false);
+    expect(canDeleteEntry(synced)).toBe(false);
+  });
+
+  it('el borrador de la cola recupera la fecha como Date', () => {
+    const entry = local({ attempts: 0, draft: { eventAt: '2026-10-10T10:00:00.000Z', photo: null } });
+
+    expect(entryToDraft(entry).eventAt).toBeInstanceOf(Date);
   });
 });
