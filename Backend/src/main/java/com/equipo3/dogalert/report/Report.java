@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 import com.equipo3.dogalert.evidence.ReportEvidence;
+import com.equipo3.dogalert.exception.ReportNotEditableException;
 import com.equipo3.dogalert.user.User;
 
 import jakarta.persistence.CascadeType;
@@ -33,21 +34,22 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Reporte de un avistamiento, anónimo o asociado a una cuenta.
+ * Indice del Requisito C del contrato de base de datos.
  *
- * <p>{@code idx_reportes_usuario_fecha} cubre el filtro por propietario y el
- * orden {@code (Fecha_Evento, ID_Reporte)} de los reportes propios, que pagina
- * por cursor opaco. Va declarado aquí, y no solo en
- * {@code V1.4__sincronizacion_idempotencia_reportes_propios.sql}, porque en este
- * repositorio las migraciones no se ejecutan automáticamente: un índice escrito
- * solo en SQL no llegaría a crearse nunca. La migración debe usar
- * <strong>exactamente</strong> este nombre y estas tres columnas, o quedarían
- * dos índices idénticos. {@code ReportIndexSchemaTests} lee los metadatos y
- * falla si falta, para que esto no vuelva a pasar en silencio.
+ * <p>El orden de las columnas no es arbitrario. findOwnPage filtra por
+ * ID_Usuario y ordena por Fecha_Evento, ID_Reporte, asi que ID_Usuario va primero
+ * porque es la condicion de igualdad y las demas siguen en el orden del
+ * ORDER BY. Con las tres columnas el indice cubre el filtro y el orden completo:
+ * el motor resuelve la pagina sin ordenar los empates de Fecha_Evento por
+ * separado.
+ *
+ * <p>El nombre es el que debe usar tambien la migracion del equipo de base de
+ * datos. Si esa migracion crea un indice con otras columnas pero distinto nombre,
+ * acabarian coexistiendo dos indices identicos. Ver seccion 5 del contrato.
  */
 @Entity
 @Table(
-        name = "Reportes",
+        name = "reportes",
         indexes = @Index(
                 name = "idx_reportes_usuario_fecha",
                 columnList = "ID_Usuario, Fecha_Evento, ID_Reporte"))
@@ -165,6 +167,44 @@ public class Report {
         }
 
         hasPhoto = evidence != null;
+    }
+
+    /**
+     * Aplica una edicion del autor y deja el reporte en PENDING.
+     *
+     * <p>Editar invalida la verificacion previa: mientras no se vuelva a revisar,
+     * el reporte no puede alimentar mapas, estadisticas ni exportaciones, que solo
+     * consumen VERIFIED. Ver 7.8 y el diagrama report_state.mmd, linea
+     * "VERIFIED --> PENDING: edicion del autor".
+     *
+     * <p>REJECTED, DUPLICATE y ARCHIVED no se editan desde esta ruta: el diagrama
+     * solo los devuelve a PENDING por via administrativa ("reabrir" o "corregir
+     * relacion"), asi que un cambio del autor se rechaza con 409.
+     */
+    public void editByAuthor(ReportEdit edit) {
+        if (!isEditableByAuthor()) {
+            throw new ReportNotEditableException();
+        }
+
+        eventAt = edit.eventAt();
+        eventType = edit.eventType();
+        severity = edit.severity();
+        certainty = edit.certainty();
+        dogCount = edit.dogCount();
+        size = edit.size();
+        color = edit.color();
+        colorUndetermined = edit.colorUndetermined();
+        collar = edit.collar();
+        description = edit.description();
+        latitude = edit.latitude();
+        longitude = edit.longitude();
+        polygonVersion = edit.polygonVersion();
+
+        status = ReportStatus.PENDING;
+    }
+
+    public boolean isEditableByAuthor() {
+        return status == ReportStatus.PENDING || status == ReportStatus.VERIFIED;
     }
 
     @AssertTrue(message = "el color debe indicarse o marcarse como indeterminado")
