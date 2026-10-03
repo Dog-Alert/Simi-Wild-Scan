@@ -76,6 +76,48 @@ public class User {
         updatedAt = Instant.now();
     }
 
+    /**
+     * RF-044 del SRS: los datos personales se eliminan despues de 12 meses sin un
+     * inicio de sesion exitoso, y un login nuevo reinicia el periodo. El corte se
+     * mide sobre Ultimo_Login y no sobre Ultima_Actividad como propone el SDD
+     * 9.5, porque el SRS habla de inicio de sesion, no de cualquier actividad.
+     *
+     * Quien nunca ha iniciado sesion se mide desde Fecha_Creacion, que para esas
+     * cuentas cumple el mismo papel que el primer login.
+     */
+    public boolean isAnonymizationDue(Instant cutoff) {
+        return !dataAnonymized
+                && accountStatus != AccountStatus.ANONIMIZADA
+                && role == Role.USUARIO
+                && retentionReference().isBefore(cutoff);
+    }
+
+    /**
+     * Elimina los datos personales sin tocar la fila. RF-043 obliga a conservar
+     * los reportes que el autor no borro, y esos reportes siguen apuntando a este
+     * identificador, asi que la cuenta no puede desaparecer.
+     *
+     * El correo no puede quedar en null porque la columna es NOT NULL y UNIQUE, y
+     * la contraseña tampoco, por NOT NULL. Por eso el llamante debe pasar un
+     * correo centinela unico por cuenta y un hash que ninguna contraseña pueda
+     * satisfacer.
+     */
+    public void anonymizePersonalData(String anonymousEmail, String unusablePasswordHash) {
+        this.name = null;
+        this.email = anonymousEmail;
+        this.phone = null;
+        this.passwordHash = unusablePasswordHash;
+        this.adultConfirmed = false;
+        this.contactAuthorized = false;
+        this.privacyAccepted = false;
+        this.dataAnonymized = true;
+        this.accountStatus = AccountStatus.ANONIMIZADA;
+    }
+
+    private Instant retentionReference() {
+        return lastLogin != null ? lastLogin : createdAt;
+    }
+
     public Long getId() {
         return id;
     }
