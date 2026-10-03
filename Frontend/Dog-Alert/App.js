@@ -18,11 +18,14 @@ import PublicInfoScreen from './screens/PublicInfoScreen';
 import FotoYUbiScreen from './screens/FotoYUbiScreen';
 import ReporteScreen from './screens/ReporteScreen';
 import SinConexionScreen from './screens/SinConexionScreen';
+import MisReportesScreen from './screens/MisReportesScreen';
+import ReporteDetalleScreen from './screens/ReporteDetalleScreen';
 import { useAuth } from './hooks/UseAuth';
 import { useReportDraft } from './hooks/UseReportDraft';
 import { useOutbox } from './hooks/useOutbox';
+import { useMyReports } from './hooks/useMyReports';
 import { createClientReportId } from './apis/reportsApi';
-import { SYNC_ERROR_KINDS, SYNC_STATES } from './domain/syncState';
+import { SYNC_ERROR_KINDS, SYNC_STATES, canRetryManually } from './domain/syncState';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,6 +33,7 @@ export default function App() {
   const { user, session, login, register, logout, loading, error, response, clearError } = useAuth();
   const { draft, updateDraft, resetDraft } = useReportDraft();
   const outbox = useOutbox(session);
+  const myReports = useMyReports(session, outbox.items);
 
   // El id se genera al entrar al formulario y se conserva entre reintentos, para
   // que un envio repetido no cree dos reportes. Se descarta al terminar.
@@ -148,6 +152,7 @@ export default function App() {
                   onAnonymous={() => props.navigation.navigate('Protocolo')}
                   onPublicInfo={() => props.navigation.navigate('InfoPublica')}
                   onReport={() => enterReportFlow(props.navigation)}
+                  onMyReports={() => props.navigation.navigate('MisReportes')}
                 />
               </>
             )}
@@ -186,7 +191,60 @@ export default function App() {
                   item={outbox.items.find((item) => item.localId === localId) || null}
                   syncing={outbox.syncing}
                   onRetry={() => outbox.retry(localId).catch(() => null)}
+                  onViewReports={() => props.navigation.navigate('MisReportes')}
                   onDone={() => props.navigation.navigate('Inicio')}
+                />
+              );
+            }}
+          </Stack.Screen>
+
+          <Stack.Screen name="MisReportes">
+            {(props) => (
+              <MisReportesScreen
+                entries={myReports.entries}
+                signedIn={Boolean(session)}
+                loading={myReports.loading}
+                loadingMore={myReports.loadingMore}
+                error={myReports.error}
+                hasMore={myReports.hasMore}
+                onRefresh={() => {
+                  myReports.refresh();
+                  outbox.sync().catch(() => null);
+                }}
+                onLoadMore={myReports.loadMore}
+                onOpen={(entry) =>
+                  props.navigation.navigate('ReporteDetalle', {
+                    key: entry.key,
+                    clientReportId: (entry.report || entry.item).clientReportId,
+                  })
+                }
+                onBack={() => props.navigation.navigate('Inicio')}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ReporteDetalle">
+            {(props) => {
+              const { key, clientReportId } = props.route.params || {};
+              // Al sincronizarse, un reporte de la cola reaparece como reporte del servidor.
+              const entry =
+                myReports.entries.find((candidate) => candidate.key === key) ||
+                myReports.entries.find(
+                  (candidate) => (candidate.report || candidate.item).clientReportId === clientReportId
+                ) ||
+                null;
+              const item = entry ? entry.item : null;
+
+              return (
+                <ReporteDetalleScreen
+                  entry={entry}
+                  busy={outbox.syncing}
+                  onBack={() => props.navigation.navigate('MisReportes')}
+                  onRetry={
+                    item && canRetryManually(item)
+                      ? () => outbox.retry(item.localId).catch(() => null)
+                      : undefined
+                  }
                 />
               );
             }}
