@@ -28,12 +28,13 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8
 const REPORTS_PATH = '/v1/reports';
 
 /** Codigo que el backend devuelve al rechazar una coordenada fuera de Creel. */
-const OUTSIDE_CREEL_CODE = 'REPORT_LOCATION_OUTSIDE_CREEL';
+const OUTSIDE_CREEL_CODE = 'LOCATION_OUTSIDE_CREEL';
 
 export const REPORT_ERROR_CODES = {
   validation: 'REPORT_VALIDATION',
   outsideCreel: OUTSIDE_CREEL_CODE,
   conflict: 'REPORT_CONFLICT',
+  deleted: 'REPORT_DELETED',
   rateLimited: 'REPORT_RATE_LIMITED',
   unauthorized: 'REPORT_UNAUTHORIZED',
   server: 'REPORT_SERVER_ERROR',
@@ -43,6 +44,7 @@ export const REPORT_ERROR_CODES = {
 const MESSAGES = {
   validation: 'Revisa los datos del reporte antes de enviarlo.',
   conflict: 'Este reporte ya fue registrado. No lo envíes de nuevo.',
+  deleted: 'Este reporte fue eliminado y no se puede volver a enviar.',
   rateLimited: 'Demasiados reportes seguidos. Espera un momento e inténtalo de nuevo.',
   unauthorized: 'Tu sesión expiró. Inicia sesión de nuevo o envía el reporte como anónimo.',
   server: 'No se pudo guardar el reporte. Inténtalo de nuevo en un momento.',
@@ -193,6 +195,14 @@ function buildError(response, body) {
   if (response.status === 409) {
     return new ReportApiError(MESSAGES.conflict, {
       code: REPORT_ERROR_CODES.conflict,
+      status: response.status,
+      requestId,
+    });
+  }
+
+  if (response.status === 410) {
+    return new ReportApiError(MESSAGES.deleted, {
+      code: REPORT_ERROR_CODES.deleted,
       status: response.status,
       requestId,
     });
