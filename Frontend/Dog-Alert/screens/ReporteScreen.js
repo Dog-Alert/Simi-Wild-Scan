@@ -57,7 +57,9 @@ export default function ReporteScreen({
   onSubmit,
   onBack,
   submitError,
-  submitting
+  submitting,
+  title = 'Nuevo reporte',
+  submitLabel = 'Enviar reporte',
 }) {
   const initialDateTime = useMemo(() => formatEventAtInput(draft.eventAt), []);
   const [dateText, setDateText] = useState(initialDateTime.date);
@@ -109,7 +111,7 @@ export default function ReporteScreen({
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerIcon}>📍</Text>
-        <Text style={styles.headerTitle}>Nuevo reporte</Text>
+        <Text style={styles.headerTitle}>{title}</Text>
       </View>
 
       <ScrollView
@@ -283,9 +285,9 @@ export default function ReporteScreen({
           onPress={handleSubmit}
           disabled={submitting}
           accessibilityRole="button"
-          accessibilityLabel="Enviar reporte"
+          accessibilityLabel={submitLabel}
         >
-          <Text style={styles.submitText}>Enviar reporte</Text>
+          <Text style={styles.submitText}>{submitLabel}</Text>
         </TouchableOpacity>
 
         {submitting ? <ActivityIndicator color="#ff6b35" /> : null}

@@ -222,3 +222,18 @@ describe('ReporteScreen', () => {
     expect(props.onSubmit).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('ReporteScreen - edicion', () => {
+  it('usa el titulo y el texto del boton recibidos', () => {
+    const { getByText, getByLabelText, props } = renderScreen({
+      title: 'Editar reporte',
+      submitLabel: 'Guardar cambios',
+    });
+
+    fireEvent.press(getByLabelText('Guardar cambios'));
+
+    expect(getByText('Editar reporte')).toBeTruthy();
+    expect(getByText('Guardar cambios')).toBeTruthy();
+    expect(props.onSubmit).toHaveBeenCalled();
+  });
+});
