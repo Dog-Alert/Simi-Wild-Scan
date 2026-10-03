@@ -7,10 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +33,7 @@ import com.equipo3.dogalert.auth.dto.RegisterRequest;
 import com.equipo3.dogalert.auth.dto.TokenResponse;
 import com.equipo3.dogalert.exception.EmailAlreadyRegisteredException;
 import com.equipo3.dogalert.exception.InvalidCredentialsException;
+import com.equipo3.dogalert.exception.TooManyLoginAttemptsException;
 import com.equipo3.dogalert.user.AccountStatus;
 import com.equipo3.dogalert.user.Role;
 import com.equipo3.dogalert.user.User;
@@ -43,16 +50,26 @@ class AuthServiceTests {
 
     private PasswordEncoder passwordEncoder;
     private AuthService authService;
+    private LoginAttemptLimiter loginAttemptLimiter;
+    private MovableClock clock;
 
     @BeforeEach
     void setUp() {
         passwordEncoder =
                 Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8();
 
+        clock = new MovableClock(Instant.parse("2026-01-15T12:00:00Z"));
+
+        loginAttemptLimiter = new LoginAttemptLimiter(
+                clock,
+                5,
+                15);
+
         authService = new AuthService(
                 userRepository,
                 passwordEncoder,
-                jwtService
+                jwtService,
+                loginAttemptLimiter
         );
     }
 
@@ -210,6 +227,265 @@ class AuthServiceTests {
         );
 
         verifyNoInteractions(jwtService);
+    }
+
+/**
+     * Fija el comportamiento del hash senuelo. Sin esa llamada, un correo
+     * inexistente respondia mucho mas rapido que uno existente y el tiempo de
+     * respuesta revelaba que correos estan registrados.
+     */
+    @Test
+    void unCorreoInexistenteIgualaElTiempoDeRespuesta() {
+        CountingPasswordEncoder counting = new CountingPasswordEncoder(
+                passwordEncoder);
+
+        AuthService service = new AuthService(
+                userRepository,
+                counting,
+                jwtService,
+                loginAttemptLimiter);
+
+        when(userRepository.findByEmailIgnoreCase(
+                "nadie@example.com"
+        )).thenReturn(Optional.empty());
+
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> service.login(
+                        new LoginRequest(
+                                "nadie@example.com",
+                                "ClaveSegura123!"
+                        )
+                )
+        );
+
+        assertEquals(1, counting.matchesCalls);
+    }
+
+    @Test
+    void bloqueaTrasCincoIntentosFallidos() {
+        stubExistingUser("eliab@example.com", "ClaveCorrecta123!");
+
+        for (int intento = 1; intento <= 5; intento++) {
+            assertThrows(
+                    InvalidCredentialsException.class,
+                    () -> authService.login(
+                            new LoginRequest(
+                                    "eliab@example.com",
+                                    "ClaveIncorrecta123!"
+                            )
+                    )
+        );
+        }
+
+        TooManyLoginAttemptsException tooMany = assertThrows(
+                TooManyLoginAttemptsException.class,
+                () -> authService.login(
+                        new LoginRequest(
+                                "eliab@example.com",
+                                "ClaveIncorrecta123!"
+                        )
+                )
+        );
+
+        assertTrue(tooMany.retryAfterSeconds() > 0);
+    }
+
+    /**
+     * El limite se consulta antes que la base de datos. Si se consultara
+     * despues, un atacante podria seguir occurrriendo la consulta y el PBKDF2
+     * con el endpoint bloqueado.
+     */
+    @Test
+    void unaIdentidadBloqueadaNoTocaLaBaseDeDatos() {
+        stubExistingUser("eliab@example.com", "ClaveCorrecta123!");
+        fillTheWindow("eliab@example.com");
+
+        assertThrows(
+                TooManyLoginAttemptsException.class,
+                () -> authService.login(
+                        new LoginRequest(
+                                "eliab@example.com",
+                                "ClaveIncorrecta123!"
+                        )
+                )
+        );
+
+        verify(userRepository, times(5))
+                .findByEmailIgnoreCase("eliab@example.com");
+    }
+
+    @Test
+    void unLoginExitosoLimpiaElContador() {
+        User user = stubExistingUser("eliab@example.com", "ClaveCorrecta123!");
+
+        for (int intento = 1; intento <= 4; intento++) {
+            assertThrows(
+                    InvalidCredentialsException.class,
+                    () -> authService.login(
+                            new LoginRequest(
+                                    "eliab@example.com",
+                                    "ClaveIncorrecta123!"
+                            )
+                    )
+        );
+        }
+
+        when(userRepository.save(user)).thenReturn(user);
+        when(jwtService.generateToken(user))
+                .thenReturn(new TokenResponse("token-prueba", "Bearer", 3600));
+
+        authService.login(
+                new LoginRequest("eliab@example.com", "ClaveCorrecta123!")
+        );
+
+        for (int intento = 1; intento <= 4; intento++) {
+            assertThrows(
+                    InvalidCredentialsException.class,
+                    () -> authService.login(
+                            new LoginRequest(
+                                    "eliab@example.com",
+                                    "ClaveIncorrecta123!"
+                            )
+                    )
+        );
+        }
+
+        assertEquals(
+                Optional.empty(),
+                loginAttemptLimiter.remainingLockout("eliab@example.com"));
+    }
+
+    /**
+     * Un correo que no existe tambien llena la ventana. Si no lo hiciera, ver
+     * que un correo se bloquea seria en si mismo un oraculo de enumeracion.
+     */
+    @Test
+    void unCorreoInexistenteLlenaLaVentana() {
+        when(userRepository.findByEmailIgnoreCase("nadie@example.com"))
+                .thenReturn(Optional.empty());
+
+        for (int intento = 1; intento <= 5; intento++) {
+            assertThrows(
+                    InvalidCredentialsException.class,
+                    () -> authService.login(
+                            new LoginRequest(
+                                    "nadie@example.com",
+                                    "ClaveSegura123!"
+                            )
+                    )
+        );
+        }
+
+        assertThrows(
+                TooManyLoginAttemptsException.class,
+                () -> authService.login(
+                        new LoginRequest(
+                                "nadie@example.com",
+                                "ClaveSegura123!"
+                        )
+                )
+        );
+    }
+
+    @Test
+    void laVentanaExpiraYDejaDeBloquear() {
+        stubExistingUser("eliab@example.com", "ClaveCorrecta123!");
+        fillTheWindow("eliab@example.com");
+
+        clock.advance(Duration.ofMinutes(16));
+
+        assertEquals(
+                Optional.empty(),
+                loginAttemptLimiter.remainingLockout("eliab@example.com"));
+    }
+
+    @Test
+    void elBloqueoDevuelveLosSegundosQueFaltan() {
+        stubExistingUser("eliab@example.com", "ClaveCorrecta123!");
+        fillTheWindow("eliab@example.com");
+
+        clock.advance(Duration.ofMinutes(4));
+
+        TooManyLoginAttemptsException tooMany = assertThrows(
+                TooManyLoginAttemptsException.class,
+                () -> authService.login(
+                        new LoginRequest(
+                                "eliab@example.com",
+                                "ClaveCorrecta123!"
+                        )
+                )
+        );
+
+        assertEquals(660L, tooMany.retryAfterSeconds());
+    }
+
+    private User stubExistingUser(String email, String password) {
+        User user = createActiveUser(email, password);
+        when(userRepository.findByEmailIgnoreCase(email))
+                .thenReturn(Optional.of(user));
+        return user;
+    }
+
+    private void fillTheWindow(String email) {
+        for (int intento = 1; intento <= 5; intento++) {
+            assertThrows(
+                    InvalidCredentialsException.class,
+                    () -> authService.login(
+                            new LoginRequest(email, "ClaveIncorrecta123!")
+                    )
+        );
+        }
+    }
+
+    private static final class CountingPasswordEncoder
+            implements PasswordEncoder {
+
+        private final PasswordEncoder delegate;
+        private int matchesCalls;
+
+        CountingPasswordEncoder(PasswordEncoder delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String encode(CharSequence rawPassword) {
+            return delegate.encode(rawPassword);
+        }
+
+        @Override
+        public boolean matches(CharSequence rawPassword, String encoded) {
+            matchesCalls++;
+            return delegate.matches(rawPassword, encoded);
+        }
+    }
+
+    private static final class MovableClock extends Clock {
+
+        private Instant instant;
+
+        MovableClock(Instant instant) {
+            this.instant = instant;
+        }
+
+        void advance(Duration duration) {
+            this.instant = this.instant.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return this.instant;
+        }
     }
 
     private User createActiveUser(

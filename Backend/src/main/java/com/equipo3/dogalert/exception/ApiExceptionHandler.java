@@ -29,6 +29,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String CODE_EMAIL_IN_USE = "EMAIL_ALREADY_REGISTERED";
     private static final String CODE_INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
+    private static final String CODE_TOO_MANY_LOGIN_ATTEMPTS =
+            "TOO_MANY_LOGIN_ATTEMPTS";
     private static final String CODE_LOCATION_OUTSIDE_CREEL = "LOCATION_OUTSIDE_CREEL";
     private static final String CODE_INVALID_PHOTO = "INVALID_PHOTO";
     private static final String CODE_INVALID_REPORT = "INVALID_REPORT";
@@ -99,6 +101,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             InvalidCredentialsException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(error(CODE_INVALID_CREDENTIALS, exception.getMessage()));
+    }
+
+    @ExceptionHandler(TooManyLoginAttemptsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyLoginAttempts(
+            TooManyLoginAttemptsException exception) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER,
+                        Long.toString(exception.retryAfterSeconds()))
+                .body(error(CODE_TOO_MANY_LOGIN_ATTEMPTS, exception.getMessage()));
     }
 
     @ExceptionHandler(ReportLocationOutsideException.class)

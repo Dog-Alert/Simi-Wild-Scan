@@ -1,7 +1,10 @@
 package com.equipo3.dogalert.auth;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -12,6 +15,7 @@ import com.equipo3.dogalert.auth.dto.RegisterRequest;
 import com.equipo3.dogalert.auth.dto.TokenResponse;
 import com.equipo3.dogalert.exception.EmailAlreadyRegisteredException;
 import com.equipo3.dogalert.exception.InvalidCredentialsException;
+import com.equipo3.dogalert.exception.TooManyLoginAttemptsException;
 import com.equipo3.dogalert.user.AccountStatus;
 import com.equipo3.dogalert.user.Role;
 import com.equipo3.dogalert.user.User;
@@ -23,15 +27,21 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final LoginAttemptLimiter loginAttemptLimiter;
+    private final String decoyPasswordHash;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            LoginAttemptLimiter loginAttemptLimiter) {
 
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.loginAttemptLimiter = loginAttemptLimiter;
+        this.decoyPasswordHash = passwordEncoder.encode(
+                UUID.randomUUID().toString());
     }
 
     @Transactional
@@ -66,13 +76,46 @@ public class AuthService {
         return jwtService.generateToken(savedUser);
     }
 
-    @Transactional
-    public TokenResponse login(LoginRequest request) {
+/**
+     * El orden de las comprobaciones no es negociable, y por eso queda escrito.
+     *
+     * Primero el limitador, antes de la consulta a la base de datos: una
+     * identidad bloqueada no consume una lectura ni ejecuta PBKDF2, que es lo
+     * que evita que un atacante convierta el endpoint publico en un quemador de
+     * CPU.
+     *
+     * Segundo, cuando el correo no existe se ejecuta igualmente el matches
+     * contra un hash senuelo. Sin esa llamada, un correo inexistente respondia en
+     * milisegundos y uno existente tardaba mas de cien por el PBKDF2, asi que el
+     * tiempo de respuesta revelaba que correos estan registrados aunque el
+     * cuerpo del 401 fuera identico en los dos casos.
+     */
+@Transactional
+public TokenResponse login(LoginRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
+
+        Optional<Duration> locked = loginAttemptLimiter.remainingLockout(
+                normalizedEmail);
+
+        if (locked.isPresent()) {
+            throw new TooManyLoginAttemptsException(
+                    loginAttemptLimiter.retryAfterSeconds(locked.get()));
+        }
 
         User user = userRepository
                 .findByEmailIgnoreCase(normalizedEmail)
-                .orElseThrow(InvalidCredentialsException::new);
+                .orElse(null);
+
+        if (user == null) {
+            passwordEncoder.matches(
+                    request.password(),
+                    decoyPasswordHash
+            );
+
+            loginAttemptLimiter.recordFailure(normalizedEmail);
+
+            throw new InvalidCredentialsException();
+        }
 
         boolean validAccount =
                 user.getAccountStatus() == AccountStatus.ACTIVA
@@ -84,6 +127,8 @@ public class AuthService {
         );
 
         if (!validAccount || !validPassword) {
+            loginAttemptLimiter.recordFailure(normalizedEmail);
+
             throw new InvalidCredentialsException();
         }
 
@@ -93,6 +138,8 @@ public class AuthService {
         user.setLastActivity(now);
 
         User updatedUser = userRepository.save(user);
+
+        loginAttemptLimiter.reset(normalizedEmail);
 
         return jwtService.generateToken(updatedUser);
     }

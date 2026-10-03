@@ -88,13 +88,12 @@ La pirámide incluye pruebas unitarias de dominio, integración con DB/servicios
 | RNF-REN-04 | MySQL, caché/materialización | T-PERF-003 con cinco años |
 | RNF-REN-05 | Compresión y validación doble | T-REP-007 |
 | RNF-SEG-01 | TLS/entrada HTTPS de Cloud Run | T-SEC-004 |
-| RNF-SEG-02 | autenticación JWT propia + secure storage | T-SEC-005 |
-| RNF-SEG-03 | RBAC/privilegio mínimo | T-SEC-006 |
-| RNF-SEG-04 | Timeout admin 15 min | T-AUTH-005 |
-| RNF-SEG-05 | Cloud SQL/Fotos/respaldos cifrados | Evidencia configuración |
-| RNF-SEG-06 | SQLite cifrada/no backup | T-SEC-007 |
-| RNF-SEG-07 | Esquemas/rate limit/MIME | T-SEC-008 |
-| RNF-SEG-08 | Secret manager/escaneo CI | T-CI-001 |
+| RNF-SEG-02 | RBAC/privilegio mínimo con JWT propia | T-SEC-005 |
+| RNF-SEG-03 | Timeout admin 15 min | T-AUTH-005 |
+| RNF-SEG-04 | Cloud SQL/fotos/respaldos cifrados | Evidencia configuración |
+| RNF-SEG-05 | Cola offline cifrada, sin logs ni copias | T-SEC-007 |
+| RNF-SEG-06 | Esquemas/rate limit/MIME/tamaño | T-SEC-008 |
+| RNF-SEG-07 | Sin secretos en el repositorio | T-CI-001 |
 | RNF-PRI-01 | Minimización/finalidad/retención | Revisión privacidad |
 | RNF-PRI-02 | Aviso previo | T-AUTH-001 |
 | RNF-PRI-03 | Contacto opcional/no público | T-AUTH-004 |
