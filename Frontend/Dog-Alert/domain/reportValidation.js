@@ -313,3 +313,9 @@ export function buildReportPayload(draft, clientReportId) {
     },
   };
 }
+
+// Cuerpo de PATCH /v1/me/reports/{id}: el mismo reporte, sin UUID ni foto.
+export function buildReportUpdatePayload(draft) {
+  const { clientReportId, ...payload } = buildReportPayload(draft, null);
+  return payload;
+}

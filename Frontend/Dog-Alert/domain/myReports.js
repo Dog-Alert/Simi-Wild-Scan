@@ -6,6 +6,7 @@ import {
   resolveDogCountBucket,
 } from '../const/reportCatalogs';
 import { getServerStatus, getSyncStatus } from '../const/syncLabels';
+import { createEmptyReportDraft } from './reportValidation';
 import { SYNC_STATES } from './syncState';
 
 const labelsOf = (options) => Object.fromEntries(options.map((option) => [option.value, option.label]));
@@ -77,5 +78,31 @@ export function toReportDetail(entry) {
     dogCount: dogCount ? DOG_COUNT_LABELS[dogCount] : '—',
     size: SIZE_LABELS[fields.size] || '—',
     description: fields.description || null,
+  };
+}
+
+// Color y "otro tipo" aun no vienen en la respuesta de DOG-35; si faltan, se vuelven a pedir.
+export function reportToDraft(report) {
+  return {
+    ...createEmptyReportDraft(),
+    eventAt: report.eventAt ? new Date(report.eventAt) : null,
+    eventType: report.eventType || '',
+    eventTypeOther: report.eventTypeOther || '',
+    severity: report.severity || '',
+    certainty: report.certainty || '',
+    dogCount: report.dogCount ? String(report.dogCount) : '',
+    size: report.size || '',
+    color: report.color || '',
+    colorUndetermined: Boolean(report.colorUndetermined),
+    collar: report.collar || '',
+    description: report.description || '',
+    location: report.exactLocation
+      ? {
+          latitude: report.exactLocation.latitude,
+          longitude: report.exactLocation.longitude,
+          source: 'MANUAL',
+          accuracyMeters: null,
+        }
+      : null,
   };
 }

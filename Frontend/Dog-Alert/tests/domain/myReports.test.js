@@ -1,4 +1,10 @@
-import { buildMyReportEntries, eventTypeLabel, toReportDetail } from '../../domain/myReports';
+import {
+  buildMyReportEntries,
+  eventTypeLabel,
+  reportToDraft,
+  toReportDetail,
+} from '../../domain/myReports';
+import { buildReportUpdatePayload } from '../../domain/reportValidation';
 import { SYNC_STATES } from '../../domain/syncState';
 
 function queueItem(localId, overrides = {}) {
@@ -147,5 +153,58 @@ describe('toReportDetail', () => {
     });
 
     expect(toReportDetail(entry)).toMatchObject({ dogCount: '—', size: '—', description: null });
+  });
+});
+
+describe('reportToDraft', () => {
+  const owned = {
+    id: 12,
+    clientReportId: 'uuid-12',
+    status: 'VERIFIED',
+    eventAt: '2026-10-05T18:00:00.000Z',
+    eventType: 'ATTACK_PET',
+    severity: 'HIGH',
+    certainty: 'MEDIUM',
+    dogCount: 4,
+    size: 'LARGE',
+    collar: 'NO',
+    description: 'Grupo de perros grandes sin collar.',
+    exactLocation: { latitude: 27.75, longitude: -107.63 },
+    hasPhoto: true,
+  };
+
+  it('llena el formulario con el reporte del servidor', () => {
+    const draft = reportToDraft(owned);
+
+    expect(draft).toMatchObject({
+      eventType: 'ATTACK_PET',
+      severity: 'HIGH',
+      certainty: 'MEDIUM',
+      dogCount: '4',
+      size: 'LARGE',
+      collar: 'NO',
+      description: 'Grupo de perros grandes sin collar.',
+      location: { latitude: 27.75, longitude: -107.63, source: 'MANUAL', accuracyMeters: null },
+      photo: null,
+    });
+    expect(draft.eventAt.toISOString()).toBe('2026-10-05T18:00:00.000Z');
+  });
+
+  it('deja vacio el color si el servidor no lo envia', () => {
+    expect(reportToDraft(owned)).toMatchObject({ color: '', colorUndetermined: false });
+    expect(reportToDraft({ ...owned, color: 'Negro' }).color).toBe('Negro');
+  });
+
+  it('se convierte de vuelta en el cuerpo del PATCH sin UUID', () => {
+    const payload = buildReportUpdatePayload({ ...reportToDraft(owned), color: 'Negro' });
+
+    expect(payload).not.toHaveProperty('clientReportId');
+    expect(payload).toMatchObject({
+      eventAt: '2026-10-05T18:00:00.000Z',
+      severity: 'HIGH',
+      dogCount: 4,
+      color: 'Negro',
+      location: { latitude: 27.75, longitude: -107.63 },
+    });
   });
 });
