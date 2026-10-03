@@ -213,7 +213,10 @@ export default function App() {
 
                 <InicioScreen
                   {...props}
-                  onStart={() => props.navigation.navigate('Login')}
+                  onStart={() => {
+                    clearError();
+                    props.navigation.navigate('Login');
+                  }}
                   onAnonymous={() => props.navigation.navigate('Protocolo')}
                   onPublicInfo={() => props.navigation.navigate('InfoPublica')}
                   onReport={() => enterReportFlow(props.navigation)}
@@ -337,8 +340,12 @@ export default function App() {
             {(props) => (
               <IniciarSesionScreen
                 onBack={() => props.navigation.navigate('Inicio')}
-                onCreateAccount={() => props.navigation.navigate('CrearCuenta')}
+                onCreateAccount={() => {
+                  clearError();
+                  props.navigation.navigate('CrearCuenta');
+                }}
                 onLogin={(payload) => handleLogin(payload, props.navigation)}
+                error={error}
               />
             )}
           </Stack.Screen>
@@ -346,8 +353,12 @@ export default function App() {
           <Stack.Screen name="CrearCuenta">
             {(props) => (
               <CrearCuentaScreen
-                onBack={() => props.navigation.navigate('Login')}
+                onBack={() => {
+                  clearError();
+                  props.navigation.navigate('Login');
+                }}
                 onCreate={(payload) => handleRegister(payload, props.navigation)}
+                error={error}
               />
             )}
           </Stack.Screen>

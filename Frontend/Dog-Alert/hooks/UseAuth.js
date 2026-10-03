@@ -49,7 +49,14 @@ export function useAuth() {
 
   const login = (payload) => authenticate(loginUser, payload, 'Error al iniciar sesión');
 
-  const register = (payload) => authenticate(registerUser, payload, 'No se pudo crear la cuenta');
+  const register = (payload) => {
+    if (payload.confirmPassword !== undefined && payload.confirmPassword !== payload.password) {
+      setError('Las contraseñas no coinciden.');
+      return Promise.resolve(null);
+    }
+
+    return authenticate(registerUser, payload, 'No se pudo crear la cuenta');
+  };
 
   // El JWT no tiene estado en el servidor: la sesion local se cierra aunque falle la llamada.
   const logout = async () => {

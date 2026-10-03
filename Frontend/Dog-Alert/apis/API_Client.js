@@ -18,7 +18,9 @@ async function fetchJson(url, options = {}, fallbackMessage = 'Error de conexió
       body.message ||
       fallbackMessage;
 
-    throw new Error(message);
+    const error = new Error(message);
+    error.details = body.error && Array.isArray(body.error.details) ? body.error.details : [];
+    throw error;
   }
 
   return data;
@@ -86,18 +88,45 @@ export async function loginUser(payload) {
   );
 }
 
-export async function registerUser(payload) {
-  return fetchJson(
-    `${API_BASE_URL}/v1/auth/register`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+// Los mensajes de Bean Validation para estos campos llegan en ingles.
+const REGISTER_FIELD_MESSAGES = {
+  email: 'Escribe un correo electrónico válido.',
+  password: 'La contraseña debe tener entre 8 y 128 caracteres.',
+  name: 'El nombre no puede pasar de 150 caracteres.',
+};
+
+export function toRegisterRequest(form) {
+  return {
+    name: form.fullName && form.fullName.trim() ? form.fullName.trim() : null,
+    email: form.email ? form.email.trim() : '',
+    password: form.password || '',
+    adultConfirmed: Boolean(form.adult),
+    privacyAccepted: Boolean(form.terms),
+  };
+}
+
+export async function registerUser(form) {
+  try {
+    return await fetchJson(
+      `${API_BASE_URL}/v1/auth/register`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(toRegisterRequest(form)),
       },
-      body: JSON.stringify(payload),
-    },
-    'No se pudo crear la cuenta'
-  );
+      'No se pudo crear la cuenta'
+    );
+  } catch (error) {
+    if (error.details && error.details.length) {
+      error.message = error.details
+        .map((detail) => REGISTER_FIELD_MESSAGES[detail.field] || detail.message)
+        .join('\n');
+    }
+
+    throw error;
+  }
 }
 
 export async function logoutUser(token) {

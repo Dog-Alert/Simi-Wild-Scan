@@ -52,6 +52,17 @@ describe('useAuth', () => {
     expect(result.current.session.userId).toBe('42');
   });
 
+  it('no crea la cuenta si las contrasenas no coinciden', async () => {
+    const { result } = renderHook(() => useAuth());
+
+    await act(() =>
+      result.current.register({ email: 'ana@correo.mx', password: 'secreta123', confirmPassword: 'otra' })
+    );
+
+    expect(registerUser).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('Las contraseñas no coinciden.');
+  });
+
   it('no abre sesion si la respuesta no trae un token valido', async () => {
     loginUser.mockResolvedValue({ ok: true });
     const { result } = renderHook(() => useAuth());
