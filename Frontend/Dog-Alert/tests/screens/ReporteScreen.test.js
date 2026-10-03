@@ -20,13 +20,44 @@ function renderScreen(overrides = {}) {
 }
 
 describe('ReporteScreen', () => {
-  it('muestra el paso 2 activo y ninguna seccion de gravedad', () => {
-    const { getByText, queryByText } = renderScreen();
+  it('muestra el paso 2 activo', () => {
+    const { getByText } = renderScreen();
 
     expect(getByText('Nuevo reporte')).toBeTruthy();
     expect(getByText('Detalles')).toBeTruthy();
-    // La gravedad la asigna quien revisa el reporte, no quien lo captura.
-    expect(queryByText('Gravedad')).toBeNull();
+  });
+
+  it('pide la gravedad y explica la elegida', () => {
+    const { getByText, getByTestId, props, rerender } = renderScreen();
+
+    expect(getByText('Gravedad')).toBeTruthy();
+    fireEvent.press(getByTestId('chip-severity-HIGH'));
+    expect(props.onChange).toHaveBeenCalledWith({ severity: 'HIGH' });
+
+    rerender(<ReporteScreen {...props} draft={{ ...props.draft, severity: 'HIGH' }} />);
+    expect(getByText(/Ataque a personas, lesión grave/)).toBeTruthy();
+  });
+
+  it('pide aceptar el consentimiento', () => {
+    const { getByLabelText, props } = renderScreen();
+
+    fireEvent.press(getByLabelText(/Acepto que este reporte se use/));
+
+    expect(props.onChange).toHaveBeenCalledWith({ consentAccepted: true });
+  });
+
+  it('muestra el error de consentimiento', () => {
+    const { getByText } = renderScreen({
+      submitError: { message: 'x', fields: { consentAccepted: 'Debes aceptar el aviso de privacidad para enviar el reporte.' } },
+    });
+
+    expect(getByText('Debes aceptar el aviso de privacidad para enviar el reporte.')).toBeTruthy();
+  });
+
+  it('no pide el consentimiento al editar', () => {
+    const { queryByLabelText } = renderScreen({ askConsent: false });
+
+    expect(queryByLabelText(/Acepto que este reporte se use/)).toBeNull();
   });
 
   it('muestra todas las secciones del formulario del diseño', () => {

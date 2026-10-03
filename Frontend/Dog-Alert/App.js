@@ -256,6 +256,7 @@ export default function App() {
                 submitting={submitting}
                 title={editing ? 'Editar reporte' : undefined}
                 submitLabel={editing ? 'Guardar cambios' : undefined}
+                askConsent={!editing}
               />
             )}
           </Stack.Screen>
