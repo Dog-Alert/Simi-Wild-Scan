@@ -234,6 +234,10 @@ function buildError(response, body) {
   });
 }
 
+export async function buildErrorFromResponse(response) {
+  return buildError(response, await readErrorBody(response));
+}
+
 /**
  * Envia el reporte.
  *
