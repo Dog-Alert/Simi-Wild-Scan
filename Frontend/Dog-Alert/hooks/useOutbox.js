@@ -12,7 +12,12 @@ function isOnline(state) {
 const ignore = () => {};
 
 export function useOutbox(session, { service, network = Network, appState = AppState } = {}) {
-  const serviceRef = useRef(service || getOutboxService());
+  const serviceRef = useRef(null);
+
+  if (!serviceRef.current) {
+    serviceRef.current = service || getOutboxService();
+  }
+
   const sessionRef = useRef(session);
   sessionRef.current = session;
 

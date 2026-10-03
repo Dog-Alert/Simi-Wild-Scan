@@ -1,6 +1,7 @@
 // La foto comprimida vive en cache y el sistema puede borrarla; la cola guarda
 // su propia copia en el directorio privado de documentos.
 
+import { Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 
 function photosDirectory() {
@@ -15,6 +16,10 @@ function extensionFor(photo) {
 export function persistPhoto(localId, photo) {
   if (!photo || !photo.uri) {
     return null;
+  }
+
+  if (Platform.OS === 'web') {
+    return photo;
   }
 
   const directory = photosDirectory();
@@ -36,7 +41,7 @@ export function persistPhoto(localId, photo) {
 }
 
 export function deletePhoto(photo) {
-  if (!photo || !photo.uri || !photo.uri.startsWith(photosDirectory().uri)) {
+  if (Platform.OS === 'web' || !photo || !photo.uri || !photo.uri.startsWith(photosDirectory().uri)) {
     return false;
   }
 

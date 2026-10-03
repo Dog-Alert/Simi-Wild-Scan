@@ -1,6 +1,7 @@
 // Cola local de reportes. Implementacion temporal sobre un archivo JSON hasta
 // tener el SQLite de DOG-37, que debe exponer los mismos metodos.
 
+import { Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 
 export const OUTBOX_SCHEMA_VERSION = 1;
@@ -152,7 +153,9 @@ let defaultRepository = null;
 
 export function getOutboxRepository() {
   if (!defaultRepository) {
-    defaultRepository = createOutboxRepository(createFileStorage());
+    // expo-file-system no funciona en web; ahi la cola solo vive en memoria.
+    const storage = Platform.OS === 'web' ? createMemoryStorage() : createFileStorage();
+    defaultRepository = createOutboxRepository(storage);
   }
 
   return defaultRepository;
