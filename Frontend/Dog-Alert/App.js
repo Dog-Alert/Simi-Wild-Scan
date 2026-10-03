@@ -24,7 +24,7 @@ import { createClientReportId, submitReport } from './apis/reportsApi';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const { user, login, register, logout, loading, error, response, clearError } = useAuth();
+  const { user, session, login, register, logout, loading, error, response, clearError } = useAuth();
   const { draft, updateDraft, resetDraft } = useReportDraft();
 
   // El id se genera al entrar al formulario y se conserva entre reintentos, para
@@ -78,11 +78,10 @@ export default function App() {
     setSubmitError(null);
 
     try {
-      // Sin token: la API acepta el reporte anonimo y `useAuth` todavia no
-      // expone el JWT.
       const receipt = await submitReport({
         draft: currentDraft,
-        clientReportId: reportId
+        clientReportId: reportId,
+        token: session ? session.token : undefined,
       });
 
       setConfirmation(receipt);
