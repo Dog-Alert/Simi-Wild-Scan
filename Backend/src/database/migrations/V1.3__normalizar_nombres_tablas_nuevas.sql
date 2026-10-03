@@ -1,16 +1,5 @@
 USE dogalert;
 
--- Normaliza los nombres de las tablas nuevas de DOG-30 y retira las tablas
--- heredadas Registros y Fotos, despues de redirigir la bitacora a reportes.
--- Usuarios se conserva porque continua siendo la tabla de cuentas referenciada
--- por V1.0 y V1.2.
---
--- En instalaciones con lower_case_table_names distinto de 0 (por ejemplo,
--- MySQL sobre Windows), MySQL ya conserva estos nombres en minusculas y cada
--- bloque se convierte en una operacion sin cambios.
---
--- PRECONDICION: Registros, Fotos y Bitacora_Administrativa deben estar vacias.
--- Esta condicion debe comprobarse en DBeaver antes de ejecutar la migracion.
 
 SET @dogalert_rename_reportes = (
     SELECT IF(
@@ -81,8 +70,7 @@ PREPARE dogalert_stmt FROM @dogalert_rename_poligonos;
 EXECUTE dogalert_stmt;
 DEALLOCATE PREPARE dogalert_stmt;
 
--- La bitacora deja de depender del modelo heredado y pasa a relacionarse con
--- la tabla oficial de reportes.
+
 ALTER TABLE Bitacora_Administrativa
     DROP FOREIGN KEY fk_bitacora_registro;
 
@@ -95,6 +83,5 @@ ALTER TABLE Bitacora_Administrativa
         REFERENCES reportes(ID_Reporte)
         ON DELETE SET NULL;
 
--- Fotos debe eliminarse antes que Registros porque contiene su llave foranea.
 DROP TABLE IF EXISTS Fotos;
 DROP TABLE IF EXISTS Registros;
