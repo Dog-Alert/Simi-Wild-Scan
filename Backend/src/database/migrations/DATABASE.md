@@ -25,8 +25,8 @@ Seguimos una convención estricta para nombrar los archivos en pares (Subida y R
 Si acabas de clonar el proyecto o necesitas levantar tu entorno local/desarrollo desde cero usando DBeaver (o tu cliente SQL preferido):
 
 1. Conéctate a tu base de datos `dogalert` por medio de DBeaver.
-2. Abre los archivos `V`, copia su contenido y ejecútalos en DBeaver en **orden secuencial ascendente** (V1.0, luego V1.1, luego V1.2, etc.).
-3. Si en algún momento necesitas limpiar la base de datos, ejecuta los archivos `U` en **orden inverso** (U1.1, luego U1.0). El orden inverso es **crucial para no romper las restricciones** de llaves foráneas.
+2. Abre los archivos `V`, copia su contenido y ejecútalos en DBeaver en **orden secuencial ascendente** (V1.0, V1.1, V1.2, V1.3 y V1.4).
+3. Si en algún momento necesitas limpiar una base desechable, ejecuta los archivos `U` en **orden inverso** (U1.4, U1.3, U1.2, U1.1 y U1.0). El orden inverso es **crucial para no romper las restricciones** de llaves foráneas.
 
 ---
 
@@ -49,3 +49,9 @@ Una vez que un archivo (ej. `V1.0...sql`) se ha fusionado a la rama `main` y apl
 ---
 
 > **Nota:** Asegúrate siempre de probar tus scripts `V` y `U` en tu entorno local (aplicando y revirtiendo) antes de solicitar una revisión de código. No subas credenciales, IPs públicas ni información sensible en estos scripts.
+
+V1.3 normaliza las tablas creadas por V1.2. V1.4 alinea el esquema con el
+backend actualizado; su alcance, prevalidaciones y verificaciones están en
+`V1.4_README.md`. El backend actual usa `ddl-auto=update` y no carga estos
+archivos con Flyway, por lo que comprueba el esquema real antes de aplicar SQL.
+No ejecutes scripts `U` en Cloud SQL compartido o de producción.
