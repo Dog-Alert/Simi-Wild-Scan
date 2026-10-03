@@ -21,6 +21,8 @@ function validDraft(overrides = {}) {
     ...createEmptyReportDraft(),
     eventAt: new Date(NOW - DAY),
     eventType: 'ATTACK_PET',
+    consentAccepted: true,
+    severity: 'MEDIUM',
     certainty: 'MEDIUM',
     dogCount: '2',
     size: 'MEDIUM',

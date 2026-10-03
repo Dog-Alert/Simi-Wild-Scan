@@ -189,6 +189,7 @@ describe('reportToDraft', () => {
       description: 'Grupo de perros grandes sin collar.',
       location: { latitude: 27.75, longitude: -107.63, source: 'MANUAL', accuracyMeters: null },
       photo: null,
+      consentAccepted: true,
     });
     expect(draft.eventAt.toISOString()).toBe('2026-10-05T18:00:00.000Z');
   });
@@ -202,6 +203,7 @@ describe('reportToDraft', () => {
     const payload = buildReportUpdatePayload({ ...reportToDraft(owned), color: 'Negro' });
 
     expect(payload).not.toHaveProperty('clientReportId');
+    expect(payload).not.toHaveProperty('consentAccepted');
     expect(payload).toMatchObject({
       eventAt: '2026-10-05T18:00:00.000Z',
       severity: 'HIGH',

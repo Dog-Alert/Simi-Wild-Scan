@@ -36,6 +36,7 @@ function validDraft(overrides = {}) {
   return {
     eventAt: VALID_DATE,
     eventType: 'ATTACK_PET',
+    consentAccepted: true,
     severity: 'HIGH',
     certainty: 'MEDIUM',
     dogCount: '2',

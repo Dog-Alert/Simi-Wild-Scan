@@ -104,6 +104,7 @@ export function reportToDraft(report) {
           accuracyMeters: null,
         }
       : null,
+    consentAccepted: true,
   };
 }
 
