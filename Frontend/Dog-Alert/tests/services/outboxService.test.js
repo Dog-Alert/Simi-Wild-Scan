@@ -13,6 +13,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const NOW = REPORT_MIN_EVENT_DATE.getTime() + 10 * DAY;
 const UUID_A = '11111111-1111-4111-8111-111111111111';
 const UUID_B = '22222222-2222-4222-8222-222222222222';
+const UUID_C = '33333333-3333-4333-8333-333333333333';
 const OUTSIDE_CREEL = { latitude: 28.6353, longitude: -106.0889 };
 
 function validDraft(overrides = {}) {
@@ -40,7 +41,7 @@ function httpError(status, extra = {}) {
 }
 
 function setup({ submit = jest.fn(), storage = createMemoryStorage() } = {}) {
-  let ids = [UUID_A, UUID_B];
+  let ids = [UUID_A, UUID_B, UUID_C];
   const clock = { time: NOW };
   const photos = {
     persistPhoto: jest.fn((localId, photo) =>
@@ -384,5 +385,77 @@ describe('remove', () => {
     const { service } = setup();
 
     expect(await service.remove('nada')).toBe(false);
+  });
+});
+
+describe('edit', () => {
+  it('corrige un reporte que nunca salio del telefono conservando su UUID', async () => {
+    const { service } = setup();
+    await service.enqueue({ draft: validDraft() });
+
+    const item = await service.edit(UUID_A, validDraft({ eventType: 'SIGHTING' }));
+
+    expect(item).toMatchObject({
+      localId: UUID_A,
+      clientReportId: UUID_A,
+      state: SYNC_STATES.pending,
+      summary: { eventType: 'SIGHTING' },
+    });
+  });
+
+  it('usa un UUID nuevo si el servidor ya rechazo el anterior', async () => {
+    const submit = jest.fn().mockRejectedValue(httpError(422));
+    const { service } = setup({ submit });
+    await service.enqueue({ draft: validDraft() });
+    await service.syncPending();
+
+    const item = await service.edit(UUID_A, validDraft());
+
+    expect(item.localId).toBe(UUID_A);
+    expect(item.clientReportId).toBe(UUID_B);
+    expect(item.attempts).toBe(0);
+  });
+
+  it('no edita un reporte que pudo haber llegado al servidor', async () => {
+    const submit = jest.fn().mockRejectedValue(networkError());
+    const { service } = setup({ submit });
+    await service.enqueue({ draft: validDraft() });
+    await service.syncPending();
+
+    await expect(service.edit(UUID_A, validDraft())).rejects.toThrow(/ya no se puede editar/);
+  });
+
+  it('no guarda una correccion invalida', async () => {
+    const { service } = setup();
+    await service.enqueue({ draft: validDraft() });
+
+    await expect(
+      service.edit(UUID_A, validDraft({ location: { ...OUTSIDE_CREEL, source: 'MANUAL' } }))
+    ).rejects.toMatchObject({ code: REPORT_ERROR_CODES.validation });
+    expect((await service.list())[0].draft.location.latitude).not.toBe(OUTSIDE_CREEL.latitude);
+  });
+
+  it('reemplaza la foto y borra la anterior', async () => {
+    const { service, photos } = setup();
+    photos.persistPhoto.mockImplementation((localId, photo) =>
+      photo ? { ...photo, uri: `file:///documents/outbox/photos/${localId}-${photo.uri.slice(-5)}` } : null
+    );
+    await service.enqueue({ draft: validDraft({ photo: { uri: 'file:///cache/a.jpg' } }) });
+
+    await service.edit(UUID_A, validDraft({ photo: { uri: 'file:///cache/b.png' } }));
+
+    expect(photos.deletePhoto).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: `file:///documents/outbox/photos/${UUID_A}-a.jpg` })
+    );
+  });
+
+  it('borra la foto si la correccion la quita', async () => {
+    const { service, photos } = setup();
+    await service.enqueue({ draft: validDraft({ photo: { uri: 'file:///cache/a.jpg' } }) });
+
+    const item = await service.edit(UUID_A, validDraft({ photo: null }));
+
+    expect(item.draft.photo).toBeNull();
+    expect(photos.deletePhoto).toHaveBeenCalled();
   });
 });

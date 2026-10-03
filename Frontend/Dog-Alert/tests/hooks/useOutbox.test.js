@@ -29,6 +29,10 @@ function fakeService(items = []) {
       state.items = [...state.items, item];
       return item;
     }),
+    edit: jest.fn(async (localId, draft) => {
+      state.items = state.items.map((item) => (item.localId === localId ? { ...item, draft } : item));
+      return state.items.find((item) => item.localId === localId);
+    }),
     retry: jest.fn(async () => ({ synced: [], failed: [], errors: {} })),
     remove: jest.fn(async (localId) => {
       state.items = state.items.filter((item) => item.localId !== localId);
@@ -150,6 +154,23 @@ describe('useOutbox', () => {
     await act(() => result.current.enqueue({ draft: {}, clientReportId: 'u1' }));
 
     expect(service.enqueue).toHaveBeenCalledWith(expect.objectContaining({ ownerId: null }));
+  });
+
+  it('edit guarda la correccion e intenta enviarla', async () => {
+    const item = { localId: 'a', state: 'SYNC_PENDING', nextAttemptAt: null };
+    const { result, service } = setup(null, [item]);
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    const calls = service.syncPending.mock.calls.length;
+
+    let outcome;
+    await act(async () => {
+      outcome = await result.current.edit('a', { description: 'nueva' });
+    });
+
+    expect(service.edit).toHaveBeenCalledWith('a', { description: 'nueva' });
+    expect(service.syncPending.mock.calls.length).toBeGreaterThan(calls);
+    expect(outcome.item.draft).toEqual({ description: 'nueva' });
+    expect(outcome.error).toBeNull();
   });
 
   it('retry y remove actualizan la lista', async () => {

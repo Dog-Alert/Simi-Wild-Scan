@@ -8,13 +8,16 @@ import { CREEL_BOUNDARY_VERSION } from '../../const/creelPolygon';
 import { isReportValid, validateReport } from '../../domain/reportValidation';
 import {
   SYNC_STATES,
+  applyQueuedEdit,
   canDeleteQueuedReport,
+  canEditQueuedReport,
   claimForSync,
   createQueuedReport,
   markReadyToSync,
   markSyncFailed,
   markSynced,
   recoverExpiredLease,
+  requiresNewClientReportId,
   retryNow,
   selectNextDue,
 } from '../../domain/syncState';
@@ -44,13 +47,17 @@ export function createOutboxService({
 } = {}) {
   let running = null;
 
-  async function enqueue({ draft, clientReportId = createId(), ownerId = null }) {
+  function assertValid(draft) {
     if (!isReportValid(draft)) {
       throw new ReportApiError('Revisa los datos del reporte antes de guardarlo.', {
         code: REPORT_ERROR_CODES.validation,
         fieldErrors: validateReport(draft),
       });
     }
+  }
+
+  async function enqueue({ draft, clientReportId = createId(), ownerId = null }) {
+    assertValid(draft);
 
     const localId = clientReportId;
     const photo = photos.persistPhoto(localId, draft.photo);
@@ -73,6 +80,36 @@ export function createOutboxService({
       photos.deletePhoto(photo);
       throw error;
     }
+  }
+
+  async function edit(localId, draft) {
+    assertValid(draft);
+
+    const current = await repository.get(localId);
+
+    if (!current || !canEditQueuedReport(current)) {
+      throw new Error('Este reporte ya no se puede editar.');
+    }
+
+    const previousPhoto = current.draft ? current.draft.photo : null;
+    const photo = photos.persistPhoto(localId, draft.photo);
+    const updated = await repository.update(localId, (item) =>
+      applyQueuedEdit(
+        item,
+        {
+          draft: { ...draft, photo },
+          polygonVersion: CREEL_BOUNDARY_VERSION,
+          clientReportId: requiresNewClientReportId(item) ? createId() : undefined,
+        },
+        now()
+      )
+    );
+
+    if (previousPhoto && (!photo || previousPhoto.uri !== photo.uri)) {
+      photos.deletePhoto(previousPhoto);
+    }
+
+    return updated;
   }
 
   // Al abrir la app ningun envio esta en curso: todo SYNCING quedo cortado.
@@ -172,6 +209,7 @@ export function createOutboxService({
 
   return {
     enqueue,
+    edit,
     recoverInterrupted,
     syncPending,
     retry,

@@ -90,17 +90,28 @@ export function useOutbox(session, { service, network = Network, appState = AppS
     return () => clearTimeout(timer);
   }, [items, userId, sync]);
 
+  const sendNow = useCallback(
+    async (saved) => {
+      const result = await sync();
+      const current = (await serviceRef.current.list()).find((item) => item.localId === saved.localId);
+      return { item: current || saved, error: result.errors[saved.localId] || null };
+    },
+    [sync]
+  );
+
   const enqueue = useCallback(
     async ({ draft, clientReportId }) => {
       const queued = await serviceRef.current.enqueue({ draft, clientReportId, ownerId: userId });
-      const result = await sync();
-      const current = (await serviceRef.current.list()).find(
-        (item) => item.localId === queued.localId
-      );
-
-      return { item: current || queued, error: result.errors[queued.localId] || null };
+      return sendNow(queued);
     },
-    [userId, sync]
+    [userId, sendNow]
+  );
+
+  const edit = useCallback(
+    async (localId, draft) => {
+      return sendNow(await serviceRef.current.edit(localId, draft));
+    },
+    [sendNow]
   );
 
   const retry = useCallback(
@@ -125,5 +136,5 @@ export function useOutbox(session, { service, network = Network, appState = AppS
     [refresh]
   );
 
-  return { items, ready, syncing, enqueue, sync, retry, remove, refresh };
+  return { items, ready, syncing, enqueue, edit, sync, retry, remove, refresh };
 }
