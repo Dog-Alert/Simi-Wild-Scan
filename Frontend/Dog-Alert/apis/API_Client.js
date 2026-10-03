@@ -11,12 +11,14 @@ async function fetchJson(url, options = {}, fallbackMessage = 'Error de conexió
   const data = isJson ? await response.json() : await response.text();
 
   if (!response.ok) {
+    const body = typeof data === 'object' && data !== null ? data : {};
     const message =
-      (typeof data === 'object' && data !== null && data.message) ||
-      (typeof data === 'object' && data !== null && data.error) ||
+      (body.error && typeof body.error === 'object' && body.error.message) ||
+      (typeof body.error === 'string' && body.error) ||
+      body.message ||
       fallbackMessage;
 
-    throw new Error(message || fallbackMessage);
+    throw new Error(message);
   }
 
   return data;
@@ -72,7 +74,7 @@ export async function getPublicReports() {
 
 export async function loginUser(payload) {
   return fetchJson(
-    `${API_BASE_URL}/api/auth/login`,
+    `${API_BASE_URL}/v1/auth/login`,
     {
       method: 'POST',
       headers: {
@@ -86,7 +88,7 @@ export async function loginUser(payload) {
 
 export async function registerUser(payload) {
   return fetchJson(
-    `${API_BASE_URL}/api/auth/register`,
+    `${API_BASE_URL}/v1/auth/register`,
     {
       method: 'POST',
       headers: {
@@ -98,13 +100,14 @@ export async function registerUser(payload) {
   );
 }
 
-export async function logoutUser() {
+export async function logoutUser(token) {
   return fetchJson(
-    `${API_BASE_URL}/api/auth/logout`,
+    `${API_BASE_URL}/v1/auth/logout`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
     },
     'No se pudo cerrar la sesión'
